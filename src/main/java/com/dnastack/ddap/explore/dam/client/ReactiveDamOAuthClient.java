@@ -13,7 +13,7 @@ import java.util.List;
 public class ReactiveDamOAuthClient extends ReactiveOAuthClient {
 
     public ReactiveDamOAuthClient(DamProperties damProperties) {
-        super(new AuthServerInfo(damProperties.getClientId(), damProperties.getClientSecret(), new DamEndpointResolver(URI.create(damProperties.getBaseUrl()))));
+        super(new AuthServerInfo(damProperties.getClientId(), damProperties.getClientSecret(), new DamEndpointResolver(damProperties.getBaseUrl())));
     }
 
     public URI getAuthorizeUrl(String realm, String state, String scopes, URI redirectUri, List<URI> resources) {

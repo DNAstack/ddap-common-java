@@ -28,7 +28,7 @@ public class ReactiveDamClient {
 
     public ReactiveDamClient(DamProperties properties, AuthAwareWebClientFactory webClientFactory) {
         this(
-                URI.create(properties.getBaseUrl()),
+                properties.getBaseUrl(),
                 properties.getClientId(),
                 properties.getClientSecret(),
                 URI.create(properties.getUiUrl()),

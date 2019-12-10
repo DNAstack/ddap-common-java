@@ -2,7 +2,6 @@ package com.dnastack.ddap.common;
 
 import com.dnastack.ddap.common.security.*;
 import com.dnastack.ddap.common.util.http.XForwardUtil;
-import com.dnastack.ddap.explore.dataset.client.DatasetErrorException;
 import com.dnastack.ddap.ic.cli.controller.CliSessionNotFoundException;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
@@ -49,12 +48,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthCookieNotPresentInRequestException.class)
     public ResponseEntity<DdapErrorResponse> handle(AuthCookieNotPresentInRequestException ex) {
         return ResponseEntity.status(401).body(new DdapErrorResponse(ex.getMessage(), 401));
-    }
-
-    @ExceptionHandler(DatasetErrorException.class)
-    public ResponseEntity<DdapErrorResponse> handle(DatasetErrorException ex) {
-        int status = ex.getStatus() == null ? 500 : ex.getStatus();
-        return ResponseEntity.status(status).body(new DdapErrorResponse(ex.getMessage(), status));
     }
 
     @Value

@@ -1,9 +1,0 @@
-<ddaplib-header [backLink]="['../../../../..']"
-             label="Workflow Detail">
-</ddaplib-header>
-<mat-card class="workflow-card">
-  <mat-card-header>Status: {{ runDetails?.state }}</mat-card-header>
-  <mat-card-content data-se="run-json-editor">
-    <json-editor [options]="editorOptions" [data]="runDetails"></json-editor>
-  </mat-card-content>
-</mat-card>

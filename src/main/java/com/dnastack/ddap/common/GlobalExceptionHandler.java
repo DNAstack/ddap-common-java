@@ -2,7 +2,6 @@ package com.dnastack.ddap.common;
 
 import com.dnastack.ddap.common.security.*;
 import com.dnastack.ddap.common.util.http.XForwardUtil;
-import com.dnastack.ddap.ic.cli.controller.CliSessionNotFoundException;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,7 +29,7 @@ public class GlobalExceptionHandler {
             .body(new DdapErrorResponse(ex.getMessage(), 400));
     }
 
-    @ExceptionHandler({IllegalArgumentException.class, CliSessionNotFoundException.class})
+    @ExceptionHandler({IllegalArgumentException.class})
     public ResponseEntity<DdapErrorResponse> handle(RuntimeException ex) {
         return ResponseEntity.status(400).body(new DdapErrorResponse(ex.getMessage(), 400));
     }

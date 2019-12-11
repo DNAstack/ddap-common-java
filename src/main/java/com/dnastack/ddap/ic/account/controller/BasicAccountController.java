@@ -24,16 +24,16 @@ import java.util.Set;
 @Slf4j
 @RestController
 @RequestMapping("/api/v1alpha/{realm}/identity")
-public class AccountController {
+public class BasicAccountController {
 
     private ReactiveIcAccountClient idpClient;
     private UserTokenCookiePackager cookiePackager;
     private ProfileService profileService;
 
     @Autowired
-    public AccountController(ReactiveIcAccountClient idpClient,
-                             UserTokenCookiePackager cookiePackager,
-                             ProfileService profileService) {
+    public BasicAccountController(ReactiveIcAccountClient idpClient,
+                                  UserTokenCookiePackager cookiePackager,
+                                  ProfileService profileService) {
         this.idpClient = idpClient;
         this.cookiePackager = cookiePackager;
         this.profileService = profileService;

@@ -24,7 +24,6 @@
         <protoc.version>3.7.0.2</protoc.version>
         <protobuf.version>3.7.1</protobuf.version>
         <jwt.version>0.10.5</jwt.version>
-        <ddap-cli.version>1.0-17-g971b16a</ddap-cli.version>
     </properties>
 
     <repositories>
@@ -112,19 +111,6 @@
         </dependency>
 
         <dependency>
-            <groupId>com.dnastack.ddap</groupId>
-            <artifactId>ddap-cli</artifactId>
-            <version>${ddap-cli.version}</version>
-            <type>zip</type>
-            <!-- This is here with test scope because:
-                    * We need this dependency to be resolved by the go-offline
-                    * The go-offline plugin doesn't support dynamic dependencies that aren't jars
-                    * We don't want this dependency to end up in our jar twice (we copy it in with the dependency plugin)
-                    * Provided scope would be better, but the spring boot plugin copies provided scope jars into your boot jar
-             -->
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
@@ -189,6 +175,22 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- Exclude protos from jar so that the library user can/must specify own proto versions -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.1.2</version>
+                <configuration>
+                    <excludes>
+                        <exclude>dam/v1/**</exclude>
+                        <exclude>ic/v1/**</exclude>
+                        <exclude>common/**</exclude>
+                        <exclude>google/protobuf/**</exclude>
+                        <exclude>proto/**</exclude>
+                        <exclude>**/*.proto</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>build-helper-maven-plugin</artifactId>
@@ -207,34 +209,6 @@
                         </configuration>
                     </execution>
                 </executions>
-            </plugin>
-            <!-- Packaged here for CLI download link -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <version>3.1.1</version>
-                <executions>
-                    <execution>
-                        <id>copy-cli-zip</id>
-                        <phase>generate-resources</phase>
-                        <goals>
-                            <goal>copy</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <artifactItems>
-                        <artifactItem>
-                            <groupId>com.dnastack.ddap</groupId>
-                            <artifactId>ddap-cli</artifactId>
-                            <version>${ddap-cli.version}</version>
-                            <type>zip</type>
-                            <overWrite>false</overWrite>
-                            <outputDirectory>${project.build.directory}/classes/static</outputDirectory>
-                            <destFileName>ddap-cli.zip</destFileName>
-                        </artifactItem>
-                    </artifactItems>
-                </configuration>
             </plugin>
         </plugins>
     </build>

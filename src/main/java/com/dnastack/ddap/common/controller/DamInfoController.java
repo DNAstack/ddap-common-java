@@ -1,7 +1,7 @@
 package com.dnastack.ddap.common.controller;
 
 import com.dnastack.ddap.common.util.http.UriUtil;
-import com.dnastack.ddap.explore.dam.client.ReactiveDamClient;
+import com.dnastack.ddap.common.client.ReactiveDamClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.bind.annotation.GetMapping;

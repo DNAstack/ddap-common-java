@@ -1,0 +1,69 @@
+steps:
+  - id: setup
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-e'
+      - '-x'
+      - '-c'
+      - |
+        # Your current directory is a workspace.
+        gcloud auth list
+        gsutil cp gs://dnastack-ci-content/bootstrap-workspace.tar.gz /tmp
+        cd /tmp
+        tar xzf bootstrap-workspace.tar.gz
+
+        # Decrypt the .netrc (only required for compilation)
+        gcloud kms decrypt --ciphertext-file=.netrc.enc --plaintext-file=.netrc --location=global --keyring=cloud-build-webhook --key=secret_key
+        cp .netrc /root/
+        rm .netrc
+        chmod 600 /root/.netrc
+
+        # Decrypt the Maven settings
+        gcloud kms decrypt --ciphertext-file=.m2/settings.xml.enc --plaintext-file=.m2/settings.xml --location=global --keyring=cloud-build-webhook --key=secret_key
+        cp -r .m2 /root/
+        rm -r .m2
+        chmod 700 /root/.m2
+        chmod 600 /root/.m2/settings.xml
+    volumes:
+      - name: 'homedir'
+        path: /root
+
+  # Get full git history for git describe
+  - name: gcr.io/cloud-builders/git
+    entrypoint: 'bash'
+    args:
+      - '-e'
+      - '-x'
+      - '-c'
+      - |
+        git clone https://github.com/DNAstack/ddap-common-java.git /tmp/ddap-common-java
+        cp -r /tmp/ddap-common-java/.git .git
+
+  - id: build_and_publish
+    name: 'openjdk:11-jdk-slim'
+    entrypoint: 'bash'
+    args:
+      - '-e'
+      - '-x'
+      - '-c'
+      - |
+        # Copy files to the home filder because the home folder is protected.
+        cp -r /homedir_dotfiles/.??* /builder/home/
+
+        appVersion=$(git describe)
+        ./mvnw -B versions:set -DnewVersion=${appVersion}
+        ./mvnw -B deploy
+    volumes:
+      - name: 'homedir'
+        path: /homedir_dotfiles
+
+timeout: 3600s
+options:
+  substitutionOption: ALLOW_LOOSE
+  logStreamingOption: STREAM_ON
+tags:
+  - "pipeline"
+  - "pipeline.run_id.rogue"
+  - "pipeline.type.library-java"
+  - "repo.ddap-common-java"

@@ -16,11 +16,7 @@
 
     <properties>
         <java.version>11</java.version>
-        <angular.project.location>angular</angular.project.location>
-        <angular.project.nodeinstallation>node_installation</angular.project.nodeinstallation>
         <spring-cloud.version>Greenwich.SR1</spring-cloud.version>
-        <node.version>v10.16.0</node.version>
-        <npm.version>6.9.0</npm.version>
         <protoc.version>3.7.0.2</protoc.version>
         <protobuf.version>3.7.1</protobuf.version>
         <jwt.version>0.10.5</jwt.version>
@@ -140,20 +136,6 @@
     </dependencyManagement>
 
     <build>
-        <pluginManagement>
-            <plugins>
-                <plugin>
-                    <groupId>com.github.eirslett</groupId>
-                    <artifactId>frontend-maven-plugin</artifactId>
-                    <version>1.0</version>
-                    <configuration>
-                        <workingDirectory>${angular.project.location}</workingDirectory>
-                        <installDirectory>${angular.project.nodeinstallation}</installDirectory>
-                    </configuration>
-                </plugin>
-            </plugins>
-        </pluginManagement>
-
         <plugins>
             <plugin>
                 <groupId>com.github.os72</groupId>
@@ -212,5 +194,13 @@
             </plugin>
         </plugins>
     </build>
+
+    <distributionManagement>
+        <repository>
+            <id>dnastack-releases</id>
+            <name>NexusDnastackReleases</name>
+            <url>https://nexus.dnastack.com/content/repositories/releases/</url>
+        </repository>
+    </distributionManagement>
 
 </project>

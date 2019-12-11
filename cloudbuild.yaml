@@ -40,7 +40,7 @@ steps:
         path: /root
 
   - id: build_and_publish
-    name: 'adoptopenjdk:8-jdk-openj9-bionic'
+    name: 'openjdk:11-jdk-slim'
     entrypoint: 'bash'
     args:
       - '-e'
@@ -58,8 +58,8 @@ steps:
         releaseVersion=$(cd ${REPO_NAME} && git checkout -q ${COMMIT_SHA} && git describe)
         cp -r ${REPO_NAME}/.git .
 
-        ./mvnw versions:set -DnewVersion=${releaseVersion}
-        ./mvnw -Pdnastack clean deploy
+        ./mvnw -B versions:set -DnewVersion=${releaseVersion}
+        ./mvnw -B -Pdnastack clean deploy
     volumes:
       - name: 'homedir'
         path: /homedir_dotfiles

@@ -7,6 +7,7 @@ import com.dnastack.ddap.common.util.http.UriUtil;
 import com.dnastack.ddap.ic.oauth.client.ReactiveIcOAuthClient;
 import com.dnastack.ddap.ic.oauth.client.TokenExchangeException;
 import com.dnastack.ddap.ic.oauth.model.TokenResponse;
+import com.dnastack.ddap.ic.service.AccountLinkingService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseCookie;
@@ -35,14 +36,17 @@ public class IcOAuthFlowController {
     private ReactiveIcOAuthClient oAuthClient;
     private UserTokenCookiePackager cookiePackager;
     private OAuthStateHandler stateHandler;
+    private AccountLinkingService accountLinkingService;
 
     @Autowired
     public IcOAuthFlowController(ReactiveIcOAuthClient oAuthClient,
                                  UserTokenCookiePackager cookiePackager,
-                                 OAuthStateHandler stateHandler) {
+                                 OAuthStateHandler stateHandler,
+                                 AccountLinkingService accountLinkingService) {
         this.oAuthClient = oAuthClient;
         this.cookiePackager = cookiePackager;
         this.stateHandler = stateHandler;
+        this.accountLinkingService = accountLinkingService;
     }
 
     /**
@@ -54,7 +58,7 @@ public class IcOAuthFlowController {
      */
     private static URI rootLoginRedirectUrl(ServerHttpRequest request, String realm) {
         return URI.create(getExternalPath(request,
-                format("/api/v1alpha/%s/identity/login", realm)));
+                                          format("/api/v1alpha/%s/identity/login", realm)));
     }
 
     @GetMapping("/logout")
@@ -63,14 +67,14 @@ public class IcOAuthFlowController {
 
         URI cookieDomainPath = UriUtil.selfLinkToApi(request, realm, "identity/token");
         ResponseEntity response = ResponseEntity.noContent()
-                .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.DAM).toString())
-                .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.IC).toString())
-                .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.OAUTH_STATE).toString())
-                .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.REFRESH).toString())
-                .build();
+                                                .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.DAM).toString())
+                                                .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.IC).toString())
+                                                .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.OAUTH_STATE).toString())
+                                                .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.REFRESH).toString())
+                                                .build();
         return oAuthClient.revokeRefreshToken(realm, refreshToken)
-                .thenReturn(response)
-                .onErrorReturn(response);
+                          .thenReturn(response)
+                          .onErrorReturn(response);
     }
 
     @GetMapping("/login")
@@ -83,16 +87,14 @@ public class IcOAuthFlowController {
         final String state = stateHandler.generateLoginState(redirectUri);
 
         final URI postLoginTokenEndpoint = UriUtil.selfLinkToApi(request, realm, "identity/token");
-        final URI loginUri = (loginHint != null) ?
-                oAuthClient.getAuthorizeUrl(realm, state, scope, postLoginTokenEndpoint, loginHint) :
-                oAuthClient.getAuthorizeUrl(realm, state, scope, postLoginTokenEndpoint);
+        final URI loginUri = oAuthClient.getAuthorizeUrl(realm, state, scope, postLoginTokenEndpoint, loginHint);
         log.debug("Redirecting to IdP login chooser page {}", loginUri);
 
         URI cookieDomainPath = UriUtil.selfLinkToApi(request, realm, "identity/token");
         ResponseEntity<Object> redirectToLoginPage = ResponseEntity.status(TEMPORARY_REDIRECT)
-                .location(loginUri)
-                .header(SET_COOKIE, cookiePackager.packageToken(state, cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.OAUTH_STATE).toString())
-                .build();
+                                                                   .location(loginUri)
+                                                                   .header(SET_COOKIE, cookiePackager.packageToken(state, cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.OAUTH_STATE).toString())
+                                                                   .build();
         return Mono.just(redirectToLoginPage);
     }
 
@@ -104,10 +106,10 @@ public class IcOAuthFlowController {
         Mono<TokenResponse> refreshAccessTokenMono = oAuthClient.refreshAccessToken(realm, refreshToken);
 
         return refreshAccessTokenMono.map((tokenResponse) -> ResponseEntity.noContent()
-                .location(UriUtil.selfLinkToUi(request, realm, "identity"))
-                .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getAccessToken(), cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.IC).toString())
-                .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getIdToken(), cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.DAM).toString())
-                .build());
+                                                                           .location(UriUtil.selfLinkToUi(request, realm, "identity"))
+                                                                           .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getAccessToken(), cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.IC).toString())
+                                                                           .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getIdToken(), cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.DAM).toString())
+                                                                           .build());
     }
 
     /**
@@ -131,18 +133,22 @@ public class IcOAuthFlowController {
                                                                 @RequestParam("state") String stateParam,
                                                                 @CookieValue("oauth_state") String stateFromCookie) {
         return oAuthClient.exchangeAuthorizationCodeForTokens(realm, rootLoginRedirectUrl(request, realm), code)
-                .flatMap(tokenResponse -> {
-                    TokenExchangePurpose tokenExchangePurpose = stateHandler.parseAndVerify(stateParam, stateFromCookie);
-                    Optional<URI> customDestination = stateHandler.getDestinationAfterLogin(stateParam)
-                            .map(possiblyRelativeUrl -> UriUtil.selfLinkToUi(request, realm, "").resolve(possiblyRelativeUrl));
-                    if (tokenExchangePurpose == TokenExchangePurpose.LOGIN) {
-                        final URI ddapDataBrowserUrl = customDestination.orElseGet(() -> UriUtil.selfLinkToUi(request, realm, ""));
-                        return Mono.just(assembleTokenResponse(ddapDataBrowserUrl, tokenResponse));
-                    } else {
-                        throw new TokenExchangeException("Unrecognized purpose in token exchange");
-                    }
-                })
-                .doOnError(exception -> log.info("Failed to negotiate token", exception));
+                          .flatMap(tokenResponse -> {
+                              TokenExchangePurpose tokenExchangePurpose = stateHandler.parseAndVerify(stateParam, stateFromCookie);
+                              Optional<URI> customDestination = stateHandler.getDestinationAfterLogin(stateParam)
+                                                                            .map(possiblyRelativeUrl -> UriUtil.selfLinkToUi(request, realm, "").resolve(possiblyRelativeUrl));
+                              if (tokenExchangePurpose == TokenExchangePurpose.LOGIN) {
+                                  final URI ddapDataBrowserUrl = customDestination.orElseGet(() -> UriUtil.selfLinkToUi(request, realm, ""));
+                                  return Mono.just(assembleTokenResponse(ddapDataBrowserUrl, tokenResponse));
+                              } else if (tokenExchangePurpose == TokenExchangePurpose.LINK) {
+                                  return accountLinkingService.finishAccountLinking(
+                                          tokenResponse.getAccessToken(), request.getCookies().getFirst("ic_token").getValue(), realm, null
+                                  ).map(success -> ResponseEntity.status(307).location(UriUtil.selfLinkToUi(request, realm, "identity")).build());
+                              } else {
+                                  return Mono.error(new TokenExchangeException("Unrecognized purpose in token exchange"));
+                              }
+                          })
+                          .doOnError(exception -> log.info("Failed to negotiate token", exception));
     }
 
     /**
@@ -173,11 +179,11 @@ public class IcOAuthFlowController {
             final ResponseCookie icTokenCookie = cookiePackager.packageToken(token.getAccessToken(), publicHost, UserTokenCookiePackager.CookieKind.IC);
             final ResponseCookie refreshTokenCookie = cookiePackager.packageToken(token.getRefreshToken(), publicHost, UserTokenCookiePackager.CookieKind.REFRESH);
             return ResponseEntity.status(TEMPORARY_REDIRECT)
-                    .location(redirectTo)
-                    .header(SET_COOKIE, damTokenCookie.toString())
-                    .header(SET_COOKIE, icTokenCookie.toString())
-                    .header(SET_COOKIE, refreshTokenCookie.toString())
-                    .build();
+                                 .location(redirectTo)
+                                 .header(SET_COOKIE, damTokenCookie.toString())
+                                 .header(SET_COOKIE, icTokenCookie.toString())
+                                 .header(SET_COOKIE, refreshTokenCookie.toString())
+                                 .build();
         }
     }
 

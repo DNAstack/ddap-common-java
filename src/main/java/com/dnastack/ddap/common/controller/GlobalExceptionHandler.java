@@ -1,8 +1,7 @@
-package com.dnastack.ddap.common;
+package com.dnastack.ddap.common.controller;
 
 import com.dnastack.ddap.common.security.*;
 import com.dnastack.ddap.common.util.http.XForwardUtil;
-import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -47,12 +46,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AuthCookieNotPresentInRequestException.class)
     public ResponseEntity<DdapErrorResponse> handle(AuthCookieNotPresentInRequestException ex) {
         return ResponseEntity.status(401).body(new DdapErrorResponse(ex.getMessage(), 401));
-    }
-
-    @Value
-    private static class DdapErrorResponse {
-        String message;
-        int statusCode;
     }
 
 }

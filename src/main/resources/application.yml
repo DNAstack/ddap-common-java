@@ -31,6 +31,9 @@ ddap:
     # Default to false so cookies work on http://localhost
     # e2e tests will remind you to set this true in real deployments!
     secure: false
+    encryptor:
+      password: 'abcdefghijk'
+      salt: '598953e322' # must be at least 8 char length and hexadecimal
   command-line-service:
     aud: ${ddap.public-uri}
     ttl: PT10M

@@ -1,15 +1,21 @@
 package com.dnastack.ddap.common.security;
 
+import com.dnastack.ddap.common.TokenEncryptorFactory;
 import com.dnastack.ddap.common.security.filter.UserTokenStatusFilter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpCookie;
 import org.springframework.http.ResponseCookie;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
+import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilterChain;
 
@@ -27,20 +33,27 @@ import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
+@Slf4j
+@RunWith(SpringRunner.class)
+@SpringBootTest(classes = { TokenEncryptorFactory.class, UserTokenCookiePackager.class })
 public class UserTokenStatusFilterTest {
 
+    @Autowired
+    private UserTokenCookiePackager cookiePackager;
+    @Autowired
+    private TokenEncryptorFactory encryptorFactory;
     UserTokenStatusFilter filter;
 
     @Before
     public void setUp() throws Exception {
-        filter = new UserTokenStatusFilter(new UserTokenCookiePackager());
+        this.filter = new UserTokenStatusFilter(cookiePackager);
     }
 
     @Test
     public void shouldTreatMalformedJwtAsExpired() {
-        assertResponseExpiresCookie("not_enough_sections");
-        assertResponseExpiresCookie("not!.even!.base64!");
-        assertResponseExpiresCookie("not.aHR0cHM6Ly93d3cueW91dHViZS5jb20vd2F0Y2g_dj1vSGc1U0pZUkhBMA.json");
+        assertResponseExpiresCookie(encryptorFactory.getEncryptor().encrypt("not_enough_sections"));
+        assertResponseExpiresCookie(encryptorFactory.getEncryptor().encrypt("not!.even!.base64!"));
+        assertResponseExpiresCookie(encryptorFactory.getEncryptor().encrypt("not.aHR0cHM6Ly93d3cueW91dHViZS5jb20vd2F0Y2g_dj1vSGc1U0pZUkhBMA.json"));
     }
 
     @Test
@@ -109,9 +122,9 @@ public class UserTokenStatusFilterTest {
         Map<String, Object> body = new HashMap<>();
         body.put("exp", exp.getEpochSecond());
 
-        return b64Encoder.encodeToString(jsonMapper.writeValueAsBytes(header)) +
+        return encryptorFactory.getEncryptor().encrypt(b64Encoder.encodeToString(jsonMapper.writeValueAsBytes(header)) +
                 "." +
                 b64Encoder.encodeToString(jsonMapper.writeValueAsBytes(body)) +
-                ".";
+                ".");
     }
 }

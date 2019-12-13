@@ -16,8 +16,12 @@ import static org.springframework.http.HttpHeaders.SET_COOKIE;
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
-    @Autowired
     private UserTokenCookiePackager cookiePackager;
+
+    @Autowired
+    public GlobalExceptionHandler(UserTokenCookiePackager cookiePackager) {
+        this.cookiePackager = cookiePackager;
+    }
 
     @ExceptionHandler(InvalidOAuthStateException.class)
     public ResponseEntity<DdapErrorResponse> handle(ServerHttpRequest request, InvalidOAuthStateException ex) {

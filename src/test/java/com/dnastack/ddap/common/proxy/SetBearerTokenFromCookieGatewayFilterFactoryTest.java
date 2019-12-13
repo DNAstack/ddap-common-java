@@ -1,16 +1,21 @@
 package com.dnastack.ddap.common.proxy;
 
+import com.dnastack.ddap.common.TokenEncryptorFactory;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieKind;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.http.HttpCookie;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
+import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.web.server.ServerWebExchange;
 
 import java.net.URI;
@@ -21,13 +26,18 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 @SuppressWarnings("UnassignedFluxMonoInstance")
+@RunWith(SpringRunner.class)
+@SpringBootTest(classes = { TokenEncryptorFactory.class, UserTokenCookiePackager.class })
 public class SetBearerTokenFromCookieGatewayFilterFactoryTest {
 
+    @Autowired
+    private UserTokenCookiePackager cookiePackager;
+    @Autowired
+    private TokenEncryptorFactory encryptorFactory;
     GatewayFilter filter;
 
     @Before
     public void setUp() {
-        UserTokenCookiePackager cookiePackager = new UserTokenCookiePackager();
         SetBearerTokenFromCookieGatewayFilterFactory filterFactory = new SetBearerTokenFromCookieGatewayFilterFactory(cookiePackager);
         SetBearerTokenFromCookieGatewayFilterFactory.Config config = new SetBearerTokenFromCookieGatewayFilterFactory.Config();
         config.setCookieKind(CookieKind.DAM);
@@ -41,8 +51,9 @@ public class SetBearerTokenFromCookieGatewayFilterFactoryTest {
         URI originalUri = URI.create("http://example.com/anything");
 
         ServerWebExchange exchange = MockServerWebExchange.from(
-                MockServerHttpRequest.get("http://example.com/anything")
-                                     .cookie(new HttpCookie(CookieKind.DAM.cookieName(), cookieToken)).build());
+            MockServerHttpRequest.get("http://example.com/anything")
+                .cookie(new HttpCookie(CookieKind.DAM.cookieName(), encryptorFactory.getEncryptor().encrypt(cookieToken)))
+                .build());
 
         GatewayFilterChain chain = mock(GatewayFilterChain.class);
 

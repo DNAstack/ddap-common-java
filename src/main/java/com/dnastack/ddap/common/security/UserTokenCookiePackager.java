@@ -1,9 +1,12 @@
 package com.dnastack.ddap.common.security;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpCookie;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.security.crypto.encrypt.Encryptors;
+import org.springframework.security.crypto.encrypt.TextEncryptor;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
@@ -13,14 +16,22 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Component
 public class UserTokenCookiePackager {
 
     /**
      * To allow local development without HTTPS, marking cookies as secure is a configurable option.
      */
-    @Value("${ddap.cookies.secure}")
     private boolean generateSecureCookies;
+    private final TextEncryptor encryptor;
+
+    public UserTokenCookiePackager(@Value("${ddap.cookies.secure}") boolean generateSecureCookies,
+                                   @Value("${ddap.cookies.encryptor.password}") String encryptorPassword,
+                                   @Value("${ddap.cookies.encryptor.salt}") String encryptorSalt) {
+        this.generateSecureCookies = generateSecureCookies;
+        this.encryptor = Encryptors.text(encryptorPassword, encryptorSalt);
+    }
 
     /**
      * Extracts a security token from the given request, which carries it in an encrypted cookie.
@@ -31,8 +42,11 @@ public class UserTokenCookiePackager {
      * if the given request doesn't contain a usable token.
      */
     public Optional<String> extractToken(ServerHttpRequest request, CookieName audience) {
-        return Optional.ofNullable(request.getCookies().getFirst(audience.cookieName()))
-                .map(HttpCookie::getValue);
+        Optional<String> token = Optional.ofNullable(request.getCookies().getFirst(audience.cookieName()))
+            .map(HttpCookie::getValue);
+        return audience.equals(CookieKind.OAUTH_STATE)
+            ? token
+            : token.map(encryptor::decrypt);
     }
 
     public String extractRequiredToken(ServerHttpRequest request, CookieName audience) {
@@ -55,21 +69,21 @@ public class UserTokenCookiePackager {
      * @param audience A cookie name that describes the collaborating service that honours the token and any service specific usage information
      * @return a cookie that should be sent to the user's browser.
      */
-    public ResponseCookie packageToken(String token, String cookieHost, CookieName audience) {
-        return ResponseCookie.from(audience.cookieName(), token)
-                .domain(cookieHost)
-                .path("/")
-                .secure(generateSecureCookies)
-                .httpOnly(true)
-                .build();
+    public ResponseCookie packageToken(String token, String cookieHost, CookieKind audience) {
+        boolean isStateKind = audience.equals(CookieKind.OAUTH_STATE);
+        ResponseCookie.ResponseCookieBuilder builder = ResponseCookie
+            .from(audience.cookieName(), isStateKind ? token : encryptor.encrypt(token))
+            .path("/")
+            .secure(generateSecureCookies)
+            .httpOnly(true);
+        if (cookieHost != null && !cookieHost.isEmpty()) {
+            builder.domain(cookieHost);
+        }
+        return builder.build();
     }
 
-    public ResponseCookie packageToken(String token, CookieName audience) {
-        return ResponseCookie.from(audience.cookieName(), token)
-                .path("/")
-                .secure(generateSecureCookies)
-                .httpOnly(true)
-                .build();
+    public ResponseCookie packageToken(String token, CookieKind audience) {
+        return packageToken(token, null, audience);
     }
 
     /**

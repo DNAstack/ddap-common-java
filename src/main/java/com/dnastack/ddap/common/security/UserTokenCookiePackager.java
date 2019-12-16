@@ -69,8 +69,8 @@ public class UserTokenCookiePackager {
      * @param audience A cookie name that describes the collaborating service that honours the token and any service specific usage information
      * @return a cookie that should be sent to the user's browser.
      */
-    public ResponseCookie packageToken(String token, String cookieHost, CookieKind audience) {
-        boolean isStateKind = audience.equals(CookieKind.OAUTH_STATE);
+    public ResponseCookie packageToken(String token, String cookieHost, CookieName audience) {
+        boolean isStateKind = audience instanceof CookieKind && audience.equals(CookieKind.OAUTH_STATE);
         ResponseCookie.ResponseCookieBuilder builder = ResponseCookie
             .from(audience.cookieName(), isStateKind ? token : encryptor.encrypt(token))
             .path("/")
@@ -82,7 +82,7 @@ public class UserTokenCookiePackager {
         return builder.build();
     }
 
-    public ResponseCookie packageToken(String token, CookieKind audience) {
+    public ResponseCookie packageToken(String token, CookieName audience) {
         return packageToken(token, null, audience);
     }
 

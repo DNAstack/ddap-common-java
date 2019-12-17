@@ -63,7 +63,7 @@ public class IcOAuthFlowController {
 
     @GetMapping("/logout")
     public Mono<? extends ResponseEntity> invalidateTokens(ServerHttpRequest request, @PathVariable String realm) {
-        String refreshToken = cookiePackager.extractRequiredToken(request, UserTokenCookiePackager.CookieKind.REFRESH);
+        UserTokenCookiePackager.CookieValue refreshToken = cookiePackager.extractRequiredToken(request, UserTokenCookiePackager.CookieKind.REFRESH);
 
         URI cookieDomainPath = UriUtil.selfLinkToApi(request, realm, "identity/token");
         ResponseEntity response = ResponseEntity.noContent()
@@ -72,7 +72,7 @@ public class IcOAuthFlowController {
                                                 .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.OAUTH_STATE).toString())
                                                 .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.REFRESH).toString())
                                                 .build();
-        return oAuthClient.revokeRefreshToken(realm, refreshToken)
+        return oAuthClient.revokeRefreshToken(realm, refreshToken.getClearText())
                           .thenReturn(response)
                           .onErrorReturn(response);
     }
@@ -100,10 +100,10 @@ public class IcOAuthFlowController {
 
     @GetMapping("/refresh")
     public Mono<? extends ResponseEntity<?>> refresh(ServerHttpRequest request, @PathVariable String realm) {
-        String refreshToken = cookiePackager.extractRequiredToken(request, UserTokenCookiePackager.CookieKind.REFRESH);
+        UserTokenCookiePackager.CookieValue refreshToken = cookiePackager.extractRequiredToken(request, UserTokenCookiePackager.CookieKind.REFRESH);
 
         URI cookieDomainPath = UriUtil.selfLinkToApi(request, realm, "identity/token");
-        Mono<TokenResponse> refreshAccessTokenMono = oAuthClient.refreshAccessToken(realm, refreshToken);
+        Mono<TokenResponse> refreshAccessTokenMono = oAuthClient.refreshAccessToken(realm, refreshToken.getClearText());
 
         return refreshAccessTokenMono.map((tokenResponse) -> ResponseEntity.noContent()
                                                                            .location(UriUtil.selfLinkToUi(request, realm, "identity"))

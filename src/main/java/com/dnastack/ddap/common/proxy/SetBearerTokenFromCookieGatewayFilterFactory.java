@@ -19,6 +19,7 @@ package com.dnastack.ddap.common.proxy;
 
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieKind;
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieValue;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,14 +58,14 @@ public class SetBearerTokenFromCookieGatewayFilterFactory extends AbstractGatewa
         return (exchange, chain) -> {
             final ServerHttpRequest request = exchange.getRequest();
 
-            Optional<String> extractedToken = cookiePackager.extractToken(request, config.getCookieKind());
+            Optional<CookieValue> extractedToken = cookiePackager.extractToken(request, config.getCookieKind());
 
             if (extractedToken.isPresent()) {
                 log.debug("Including {} token in this request", config.getCookieKind());
-                final String token = extractedToken.get();
+                final CookieValue token = extractedToken.get();
 
                 final ServerHttpRequest requestWithDamToken = request.mutate()
-                        .header("Authorization", format("Bearer %s", token))
+                        .header("Authorization", format("Bearer %s", token.getClearText()))
                         .build();
 
                 return chain.filter(exchange.mutate()

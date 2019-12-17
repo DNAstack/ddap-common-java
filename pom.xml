@@ -11,8 +11,8 @@
     <groupId>com.dnastack</groupId>
     <artifactId>ddap-common</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>DDAP Explore</name>
-    <description>Data Discovery and Access Platform - Frontend Service</description>
+    <name>DDAP Common</name>
+    <description>Data Discovery and Access Platform - Common Library</description>
 
     <properties>
         <java.version>11</java.version>

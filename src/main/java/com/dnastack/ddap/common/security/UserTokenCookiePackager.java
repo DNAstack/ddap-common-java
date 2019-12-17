@@ -1,5 +1,9 @@
 package com.dnastack.ddap.common.security;
 
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpCookie;
@@ -41,20 +45,18 @@ public class UserTokenCookiePackager {
      * @return A string that can be used as a bearer token in a request to DAM, or {@code Optional.empty}
      * if the given request doesn't contain a usable token.
      */
-    public Optional<String> extractToken(ServerHttpRequest request, CookieName audience) {
+    public Optional<CookieValue> extractToken(ServerHttpRequest request, CookieName audience) {
         Optional<String> token = Optional.ofNullable(request.getCookies().getFirst(audience.cookieName()))
             .map(HttpCookie::getValue);
-        return audience.equals(CookieKind.OAUTH_STATE)
-            ? token
-            : token.map(encryptor::decrypt);
+        return token.map(CookieValue::new);
     }
 
-    public String extractRequiredToken(ServerHttpRequest request, CookieName audience) {
+    public CookieValue extractRequiredToken(ServerHttpRequest request, CookieName audience) {
         return extractToken(request, audience)
                 .orElseThrow(() -> new AuthCookieNotPresentInRequestException(audience.cookieName()));
     }
 
-    public <N extends CookieName> Map<N, String> extractRequiredTokens(ServerHttpRequest request, Set<N> audiences) {
+    public <N extends CookieName> Map<N, CookieValue> extractRequiredTokens(ServerHttpRequest request, Set<N> audiences) {
         return audiences.stream()
                 .map(audience -> Map.entry(audience, extractRequiredToken(request, audience)))
                 .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
@@ -130,6 +132,23 @@ public class UserTokenCookiePackager {
         @Override
         public String cookieName() {
             return "cart_" + resources.hashCode();
+        }
+    }
+
+    @RequiredArgsConstructor
+    @Getter
+    @ToString(exclude = "clearText")
+    @EqualsAndHashCode(exclude = "clearText")
+    public class CookieValue {
+        private final String cipherText;
+        private String clearText;
+
+        public String getClearText() {
+            if (clearText == null) {
+                clearText = encryptor.decrypt(cipherText);
+            }
+
+            return clearText;
         }
     }
 

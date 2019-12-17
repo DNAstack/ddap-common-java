@@ -3,6 +3,7 @@ package com.dnastack.ddap.ic.account.controller;
 import com.dnastack.ddap.common.config.ProfileService;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieKind;
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieValue;
 import com.dnastack.ddap.ic.account.client.ReactiveIcAccountClient;
 import com.dnastack.ddap.ic.account.model.IdentityModel;
 import com.dnastack.ddap.ic.common.security.JwtUtil;
@@ -41,12 +42,12 @@ public class BasicAccountController {
 
     @GetMapping
     public Mono<? extends ResponseEntity<?>> getIdentity(ServerHttpRequest request, @PathVariable String realm) {
-        Map<CookieKind, String> tokens = cookiePackager.extractRequiredTokens(request, Set.of(CookieKind.IC, CookieKind.DAM, CookieKind.REFRESH));
+        Map<CookieKind, CookieValue> tokens = cookiePackager.extractRequiredTokens(request, Set.of(CookieKind.IC, CookieKind.DAM, CookieKind.REFRESH));
 
         Mono<IcService.AccountResponse> accountMono = idpClient.getAccounts(realm, tokens);
 
         return accountMono.map(account -> {
-            Optional<JwtUtil.JwtSubject> subject = JwtUtil.dangerousStopgapExtractSubject(tokens.get(CookieKind.IC));
+            Optional<JwtUtil.JwtSubject> subject = JwtUtil.dangerousStopgapExtractSubject(tokens.get(CookieKind.IC).getClearText());
             return IdentityModel.builder()
                     .account(account.getAccount())
                     .scopes(subject.get().getScope())

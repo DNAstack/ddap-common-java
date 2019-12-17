@@ -1,5 +1,6 @@
 package com.dnastack.ddap.common.security.filter;
 
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieValue;
 import com.dnastack.ddap.common.util.http.XForwardUtil;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieKind;
@@ -52,13 +53,13 @@ public class UserTokenStatusFilter implements WebFilter {
         final ServerHttpRequest originalRequest = exchange.getRequest();
         final ServerHttpResponse mutableResponse = exchange.getResponse();
 
-        Optional<String> extractedToken = cookiePackager.extractToken(originalRequest, CookieKind.DAM);
+        Optional<CookieValue> extractedToken = cookiePackager.extractToken(originalRequest, CookieKind.DAM);
         boolean haveValidAuth;
 
         if (extractedToken.isPresent()) {
-            final String token = extractedToken.get();
+            final CookieValue token = extractedToken.get();
 
-            if (isJwtTokenExpired(token)) {
+            if (isJwtTokenExpired(token.getClearText())) {
                 log.info("Clearing expired token cookie");
                 final String requestUrl = XForwardUtil.getExternalPath(originalRequest, "/");
                 final String cookieHost = URI.create(requestUrl).getHost();

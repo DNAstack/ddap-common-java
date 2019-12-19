@@ -1,5 +1,6 @@
 package com.dnastack.ddap.common.security.filter;
 
+import com.dnastack.ddap.common.security.PlainTextNotDecryptableException;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieValue;
 import com.dnastack.ddap.common.util.http.XForwardUtil;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
@@ -9,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
@@ -49,33 +51,43 @@ public class UserTokenStatusFilter implements WebFilter {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
-
         final ServerHttpRequest originalRequest = exchange.getRequest();
         final ServerHttpResponse mutableResponse = exchange.getResponse();
 
-        Optional<CookieValue> extractedToken = cookiePackager.extractToken(originalRequest, CookieKind.DAM);
-        boolean haveValidAuth;
+        Optional<CookieValue> extractedDamToken = cookiePackager.extractToken(originalRequest, CookieKind.DAM);
+        Optional<CookieValue> extractedIcToken = cookiePackager.extractToken(originalRequest, CookieKind.IC);
 
-        if (extractedToken.isPresent()) {
-            final CookieValue token = extractedToken.get();
+        final boolean isDamTokenStaleOrExpired = extractedDamToken
+            .map((token) -> isStaleOrExpiredToken(originalRequest, mutableResponse, token, CookieKind.DAM))
+            .orElse(true);
+        final boolean isIcTokenStaleOrExpired = extractedIcToken
+            .map((token) -> isStaleOrExpiredToken(originalRequest, mutableResponse, token, CookieKind.IC))
+            .orElse(true);
 
-            if (isJwtTokenExpired(token.getClearText())) {
-                log.info("Clearing expired token cookie");
-                final String requestUrl = XForwardUtil.getExternalPath(originalRequest, "/");
-                final String cookieHost = URI.create(requestUrl).getHost();
-                mutableResponse.addCookie(cookiePackager.clearToken(cookieHost, CookieKind.DAM));
-                haveValidAuth = false;
-            } else {
-                haveValidAuth = true;
-            }
-
-        } else {
-            haveValidAuth = false;
-        }
-
-        mutableResponse.getHeaders().add("X-DDAP-Authenticated", Boolean.toString(haveValidAuth));
+        mutableResponse.getHeaders().add("X-DDAP-Authenticated", Boolean.toString(!isDamTokenStaleOrExpired || !isIcTokenStaleOrExpired));
 
         return chain.filter(exchange);
+    }
+
+    private boolean isStaleOrExpiredToken(ServerHttpRequest originalRequest, ServerHttpResponse mutableResponse, CookieValue token, CookieKind cookieKind) {
+        try {
+            if (isJwtTokenExpired(token.getClearText())) {
+                log.info("Clearing expired token cookie " + cookieKind);
+                clearExpiredToken(originalRequest, mutableResponse, cookieKind);
+                return true;
+            }
+        } catch (PlainTextNotDecryptableException ptnde) {
+            log.warn("Clearing stale token cookie " + cookieKind, ptnde);
+            clearExpiredToken(originalRequest, mutableResponse, cookieKind);
+            return true;
+        }
+        return false;
+    }
+
+    private void clearExpiredToken(ServerHttpRequest originalRequest, ServerHttpResponse mutableResponse, CookieKind cookieKind) {
+        final String requestUrl = XForwardUtil.getExternalPath(originalRequest, "/");
+        final String cookieHost = URI.create(requestUrl).getHost();
+        mutableResponse.addCookie(cookiePackager.clearToken(cookieHost, cookieKind));
     }
 
 

@@ -17,17 +17,21 @@
 
 package com.dnastack.ddap.common.proxy;
 
+import com.dnastack.ddap.common.security.PlainTextNotDecryptableException;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieKind;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieValue;
+import com.dnastack.ddap.common.util.http.XForwardUtil;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Component;
 
+import java.net.URI;
 import java.util.List;
 import java.util.Optional;
 
@@ -63,14 +67,21 @@ public class SetBearerTokenFromCookieGatewayFilterFactory extends AbstractGatewa
             if (extractedToken.isPresent()) {
                 log.debug("Including {} token in this request", config.getCookieKind());
                 final CookieValue token = extractedToken.get();
+                String tokenValue;
 
-                final ServerHttpRequest requestWithDamToken = request.mutate()
-                        .header("Authorization", format("Bearer %s", token.getClearText()))
-                        .build();
+                try {
+                    tokenValue = token.getClearText();
+                } catch (PlainTextNotDecryptableException ptnde) {
+                    log.info("Request was made with stale {} token. Passing through with original cookie value.", config.getCookieKind());
+                    tokenValue = token.getCipherText();
+                }
 
+                final ServerHttpRequest requestWithToken = request.mutate()
+                    .header("Authorization", format("Bearer %s", tokenValue))
+                    .build();
                 return chain.filter(exchange.mutate()
-                        .request(requestWithDamToken)
-                        .build());
+                    .request(requestWithToken)
+                    .build());
             } else {
                 log.debug("No {} token available for this request", config.getCookieKind());
                 return chain.filter(exchange);

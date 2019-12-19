@@ -145,7 +145,11 @@ public class UserTokenCookiePackager {
 
         public String getClearText() {
             if (clearText == null) {
-                clearText = encryptor.decrypt(cipherText);
+                try {
+                    clearText = encryptor.decrypt(cipherText);
+                } catch (IllegalArgumentException iae) {
+                    throw new PlainTextNotDecryptableException("Unable to decrypt text", iae);
+                }
             }
 
             return clearText;

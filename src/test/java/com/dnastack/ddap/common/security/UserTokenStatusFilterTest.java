@@ -11,6 +11,7 @@ import org.junit.runner.RunWith;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.HttpCookie;
 import org.springframework.http.ResponseCookie;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
@@ -42,7 +43,9 @@ public class UserTokenStatusFilterTest {
     private UserTokenCookiePackager cookiePackager;
     @Autowired
     private TokenEncryptorFactory encryptorFactory;
-    UserTokenStatusFilter filter;
+    @MockBean
+    private ServerWebExchange exchange;
+    private UserTokenStatusFilter filter;
 
     @Before
     public void setUp() throws Exception {
@@ -83,8 +86,7 @@ public class UserTokenStatusFilterTest {
 
     private void assertResponseExpiresCookie(String jwtValue) {
         ResponseCookie responseCookie = runFilterAndExtractResponseCookie(jwtValue);
-        assertThat(format("Expected a '%s' cookie in the response", DAM.cookieName()),
-                responseCookie, notNullValue());
+        assertThat(format("Expected a '%s' cookie in the response", DAM.cookieName()), responseCookie, notNullValue());
         assertThat(responseCookie.getValue(), is("expired"));
         assertThat(responseCookie.getMaxAge(), is(Duration.ZERO));
     }
@@ -97,8 +99,9 @@ public class UserTokenStatusFilterTest {
     private ResponseCookie runFilterAndExtractResponseCookie(String jwtValue) {
         // given
         ServerWebExchange exchange = MockServerWebExchange.from(
-                MockServerHttpRequest.get("http://example.com/anything")
-                        .cookie(new HttpCookie(DAM.cookieName(), jwtValue)).build());
+            MockServerHttpRequest.get("http://example.com/anything")
+                .cookie(new HttpCookie(DAM.cookieName(), jwtValue)).build()
+        );
 
         WebFilterChain chain = mock(WebFilterChain.class);
 

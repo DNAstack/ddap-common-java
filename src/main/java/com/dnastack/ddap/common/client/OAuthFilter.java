@@ -1,5 +1,6 @@
 package com.dnastack.ddap.common.client;
 
+import com.dnastack.ddap.common.OAuthConstants;
 import com.dnastack.ddap.ic.oauth.model.TokenResponse;
 import com.dnastack.ddap.ic.oauth.client.ReactiveIcOAuthClient;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
@@ -11,8 +12,11 @@ import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import reactor.core.publisher.Mono;
 
+import java.util.Arrays;
 import java.util.function.Function;
 
+import static com.dnastack.ddap.common.OAuthConstants.DEFAULT_SCOPES;
+import static java.util.stream.Collectors.joining;
 import static org.springframework.http.HttpHeaders.SET_COOKIE;
 
 @Slf4j
@@ -38,16 +42,21 @@ public class OAuthFilter {
                     if (clientResponse.statusCode().value() != 401 || refreshToken == null) {
                         return Mono.just(clientResponse);
                     }
-                    return oAuthClient.refreshAccessToken(realm, refreshToken).flatMap(token -> {
+
+                    return oAuthClient.refreshAccessToken(realm, refreshToken, null).flatMap(token -> {
                         ClientRequest retryRequest = ClientRequest.from(request)
                                 .headers(h -> h.setBearerAuth(audience.getToken(token)))
                                 .build();
                         return next.exchange(retryRequest).map(retryResponse -> {
-                            return ClientResponse.from(retryResponse)
-                                    // TODO: DISCO-2311 find out how to propagate Set-Cookie to endpoint
-                                    .header(SET_COOKIE, cookiePackager.packageToken(token.getAccessToken(), UserTokenCookiePackager.CookieKind.IC).toString())
-                                    .header(SET_COOKIE, cookiePackager.packageToken(token.getIdToken(), UserTokenCookiePackager.CookieKind.DAM).toString())
-                                    .build();
+                            final ClientResponse.Builder builder =
+                                    ClientResponse.from(retryResponse)
+                                                  // TODO: DISCO-2311 find out how to propagate Set-Cookie to endpoint
+                                                  .header(SET_COOKIE, cookiePackager.packageToken(token.getAccessToken(), UserTokenCookiePackager.CookieKind.IC).toString())
+                                                  .header(SET_COOKIE, cookiePackager.packageToken(token.getIdToken(), UserTokenCookiePackager.CookieKind.DAM).toString());
+                            if (token.getRefreshToken() != null) {
+                                builder.header(SET_COOKIE, cookiePackager.packageToken(token.getRefreshToken(), UserTokenCookiePackager.CookieKind.REFRESH).toString());
+                            }
+                            return builder.build();
                         });
                     });
                 });

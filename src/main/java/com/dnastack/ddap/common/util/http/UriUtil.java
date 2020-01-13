@@ -29,7 +29,18 @@ public class UriUtil {
      * @return absolute URI of the given relative DDAP API path for the given realm. Never null.
      */
     public static URI selfLinkToApi(ServerHttpRequest request, String realm, String pathWithoutLeadingSlash) {
-        return URI.create(getExternalPath(request, format("/api/v1alpha/%s/%s", realm, pathWithoutLeadingSlash)));
+        return URI.create(getExternalPath(request, format("/api/v1alpha/realm/%s/%s", realm, pathWithoutLeadingSlash)));
+    }
+
+    /**
+     * Returns a fully-qualified URL pointing to an API resource/endpoint without a realm on this DDAP instance.
+     *
+     * @param request                 the inbound request from the user's browser (for calculating our return address)
+     * @param pathWithoutLeadingSlash the path component. Must not begin with a slash.
+     * @return absolute URI of the given relative DDAP API path without a realm. Never null.
+     */
+    public static URI selfLinkToApi(ServerHttpRequest request, String pathWithoutLeadingSlash) {
+        return URI.create(getExternalPath(request, format("/api/v1alpha/%s", pathWithoutLeadingSlash)));
     }
 
     /**

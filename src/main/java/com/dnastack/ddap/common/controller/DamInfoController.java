@@ -17,7 +17,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/v1alpha/{realm}/dam")
+@RequestMapping("/api/v1alpha/realm/{realm}/dam")
 public class DamInfoController {
 
     private Map<String, ReactiveDamClient> damClients;

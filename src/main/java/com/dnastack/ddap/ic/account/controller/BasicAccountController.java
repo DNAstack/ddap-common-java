@@ -24,7 +24,7 @@ import java.util.Set;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1alpha/{realm}/identity")
+@RequestMapping("/api/v1alpha/realm/{realm}/identity")
 public class BasicAccountController {
 
     private ReactiveIcAccountClient idpClient;
@@ -42,12 +42,13 @@ public class BasicAccountController {
 
     @GetMapping
     public Mono<? extends ResponseEntity<?>> getIdentity(ServerHttpRequest request, @PathVariable String realm) {
-        Map<CookieKind, CookieValue> tokens = cookiePackager.extractRequiredTokens(request, Set.of(CookieKind.IC, CookieKind.DAM, CookieKind.REFRESH));
+        final CookieValue icToken = cookiePackager.extractRequiredToken(request, CookieKind.IC);
+        final CookieValue refreshToken = cookiePackager.extractToken(request, CookieKind.REFRESH).orElse(null);
 
-        Mono<IcService.AccountResponse> accountMono = idpClient.getAccounts(realm, tokens);
+        Mono<IcService.AccountResponse> accountMono = idpClient.getAccounts(realm, icToken, refreshToken);
 
         return accountMono.map(account -> {
-            Optional<JwtUtil.JwtSubject> subject = JwtUtil.dangerousStopgapExtractSubject(tokens.get(CookieKind.IC).getClearText());
+            Optional<JwtUtil.JwtSubject> subject = JwtUtil.dangerousStopgapExtractSubject(icToken.getClearText());
             return IdentityModel.builder()
                     .account(account.getAccount())
                     .scopes(subject.get().getScope())

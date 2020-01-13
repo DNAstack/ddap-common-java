@@ -2,6 +2,8 @@ package com.dnastack.ddap.common.security;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -33,42 +35,45 @@ public class OAuthStateHandler {
                                          Keys.hmacShaKeyFor(Base64.getMimeDecoder().decode(tokenSigningKeyBase64)));
     }
 
-    public String generateAccountLinkingState(String targetAccountId) {
+    public String generateAccountLinkingState(String targetAccountId, String realm) {
         return generateState(TokenExchangePurpose.LINK,
-                singletonMap("targetAccount", targetAccountId));
+                             realm,
+                             singletonMap("targetAccount", targetAccountId));
     }
 
-    public String generateLoginState(URI destinationAfterLogin) {
+    public String generateLoginState(URI destinationAfterLogin, String realm) {
         return generateState(TokenExchangePurpose.LOGIN,
-                singletonMap(DESTINATION_AFTER_LOGIN, destinationAfterLogin));
+                             realm,
+                             singletonMap(DESTINATION_AFTER_LOGIN, destinationAfterLogin));
     }
 
-    public String generateResourceState(URI destinationAfterLogin, List<URI> resources) {
-        return generateState(TokenExchangePurpose.RESOURCE_AUTH, Map.of(DESTINATION_AFTER_LOGIN, destinationAfterLogin,
-                                                                        AUTH_RESOURCE_LIST, resources));
+    public String generateResourceState(URI destinationAfterLogin, String realm, List<URI> resources) {
+        return generateState(TokenExchangePurpose.RESOURCE_AUTH, realm, Map.of(DESTINATION_AFTER_LOGIN, destinationAfterLogin,
+                                                                               AUTH_RESOURCE_LIST, resources));
     }
 
-    public String generateCommandLineLoginState(String cliSessionId) {
+    public String generateCommandLineLoginState(String cliSessionId, String realm) {
         return generateState(TokenExchangePurpose.CLI_LOGIN,
+                             realm,
                              singletonMap(CLI_SESSION_ID_KEY, cliSessionId));
     }
 
 
-    private String generateState(TokenExchangePurpose purpose, Map<String, Object> additionalClaims) {
+    private String generateState(TokenExchangePurpose purpose, String realm, Map<String, Object> additionalClaims) {
         return jwtHandler.createBuilder(com.dnastack.ddap.common.security.JwtHandler.TokenKind.STATE)
                          .claim("purpose", purpose.toString())
+                         .claim("realm", realm)
                          .addClaims(additionalClaims)
                          .compact();
     }
 
-    public TokenExchangePurpose parseAndVerify(String stateStringParam, String stateStringCookie) {
+    public ValidatedState parseAndVerify(String stateStringParam, String stateStringCookie) {
         if (!Objects.equals(stateStringParam, stateStringCookie)) {
             throw new InvalidOAuthStateException("CSRF state cookie mismatch", stateStringCookie);
         }
         try {
             Jws<Claims> state = parseStateToken(stateStringParam);
-            String purposeString = state.getBody().get("purpose", String.class);
-            return TokenExchangePurpose.valueOf(purposeString);
+            return new ValidatedState(state.getBody());
         } catch (Exception e) {
             throw new InvalidOAuthStateException("Invalid state token", e, stateStringParam);
         }
@@ -79,17 +84,40 @@ public class OAuthStateHandler {
                          .parseClaimsJws(jwt);
     }
 
-    public Optional<URI> getDestinationAfterLogin(String stateToken) {
-        return Optional.ofNullable(parseStateToken(stateToken).getBody().get(DESTINATION_AFTER_LOGIN, String.class))
-                .map(URI::create);
-    }
+    @ToString
+    @EqualsAndHashCode
+    public static class ValidatedState {
+        private final Claims state;
 
-    public Optional<String> extractCliSessionId(String stateToken) {
-        return Optional.ofNullable(parseStateToken(stateToken).getBody().get(CLI_SESSION_ID_KEY, String.class));
-    }
+        public ValidatedState(Claims state) {
+            this.state = state;
+            getTokenExchangePurpose();
+            if (getRealm() == null) {
+                throw new IllegalStateException("Cannot have null realm in state");
+            }
+        }
 
-    public Optional<List<String>> extractResource(String stateToken) {
-        return Optional.ofNullable(parseStateToken(stateToken).getBody().get(AUTH_RESOURCE_LIST, List.class));
+        public TokenExchangePurpose getTokenExchangePurpose() {
+            return TokenExchangePurpose.valueOf(state.get("purpose", String.class));
+        }
+
+        public String getRealm() {
+            return state.get("realm", String.class);
+        }
+
+        @SuppressWarnings("unchecked")
+        public Optional<List<String>> getResourceList() {
+            return Optional.ofNullable(state.get(AUTH_RESOURCE_LIST, List.class));
+        }
+
+        public Optional<String> getCliSession() {
+            return Optional.ofNullable(state.get(CLI_SESSION_ID_KEY, String.class));
+        }
+
+        public Optional<URI> getDestinationAfterLogin() {
+            return Optional.ofNullable(state.get(DESTINATION_AFTER_LOGIN, String.class))
+                           .map(URI::create);
+        }
     }
 
 }

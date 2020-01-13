@@ -32,8 +32,6 @@ public class SetBearerTokenFromCookieGatewayFilterFactoryTest {
 
     @Autowired
     private UserTokenCookiePackager cookiePackager;
-    @Autowired
-    private TokenEncryptorFactory encryptorFactory;
     GatewayFilter filter;
 
     @Before
@@ -52,7 +50,7 @@ public class SetBearerTokenFromCookieGatewayFilterFactoryTest {
 
         ServerWebExchange exchange = MockServerWebExchange.from(
             MockServerHttpRequest.get("http://example.com/anything")
-                .cookie(new HttpCookie(CookieKind.DAM.cookieName(), encryptorFactory.getEncryptor().encrypt(cookieToken)))
+                .cookie(new HttpCookie(CookieKind.DAM.cookieName(), cookiePackager.encodeToken(cookieToken)))
                 .build());
 
         GatewayFilterChain chain = mock(GatewayFilterChain.class);

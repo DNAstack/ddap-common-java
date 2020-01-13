@@ -9,16 +9,17 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpCookie;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.springframework.security.crypto.encrypt.BytesEncryptor;
 import org.springframework.security.crypto.encrypt.Encryptors;
-import org.springframework.security.crypto.encrypt.TextEncryptor;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
 import java.time.Duration;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
+import java.util.zip.DataFormatException;
+import java.util.zip.Deflater;
+import java.util.zip.Inflater;
 
 @Slf4j
 @Component
@@ -28,13 +29,13 @@ public class UserTokenCookiePackager {
      * To allow local development without HTTPS, marking cookies as secure is a configurable option.
      */
     private boolean generateSecureCookies;
-    private final TextEncryptor encryptor;
+    private final BytesEncryptor encryptor;
 
     public UserTokenCookiePackager(@Value("${ddap.cookies.secure}") boolean generateSecureCookies,
                                    @Value("${ddap.cookies.encryptor.password}") String encryptorPassword,
                                    @Value("${ddap.cookies.encryptor.salt}") String encryptorSalt) {
         this.generateSecureCookies = generateSecureCookies;
-        this.encryptor = Encryptors.text(encryptorPassword, encryptorSalt);
+        this.encryptor = Encryptors.standard(encryptorPassword, encryptorSalt);
     }
 
     /**
@@ -46,9 +47,32 @@ public class UserTokenCookiePackager {
      * if the given request doesn't contain a usable token.
      */
     public Optional<CookieValue> extractToken(ServerHttpRequest request, CookieName audience) {
-        Optional<String> token = Optional.ofNullable(request.getCookies().getFirst(audience.cookieName()))
-            .map(HttpCookie::getValue);
-        return token.map(CookieValue::new);
+        return Optional.ofNullable(request.getCookies().getFirst(audience.cookieName()))
+                       .map(HttpCookie::getValue)
+                       .flatMap(cookie -> {
+                           try {
+                               final String clearText = decodeToken(cookie);
+                               return Optional.of(new CookieValue(cookie, clearText));
+                           } catch (DataFormatException e) {
+                               return Optional.empty();
+                           }
+                       });
+    }
+
+    /**
+     * Encodes token as encrypted/compressed value without packaging it in a cookie.
+     * Most users should prefer {@link #packageToken(String, CookieName)}.
+     */
+    public String encodeToken(String token) {
+        return encrypt(compressToken(token));
+    }
+
+    /**
+     * Decodes token encrypted/compressed value.
+     * Most users should prefer {@link #extractToken(ServerHttpRequest, CookieName)}.
+     */
+    public String decodeToken(String cookie) throws DataFormatException {
+        return decompressToken(decrypt(cookie));
     }
 
     public CookieValue extractRequiredToken(ServerHttpRequest request, CookieName audience) {
@@ -74,7 +98,7 @@ public class UserTokenCookiePackager {
     public ResponseCookie packageToken(String token, String cookieHost, CookieName audience) {
         boolean isStateKind = audience instanceof CookieKind && audience.equals(CookieKind.OAUTH_STATE);
         ResponseCookie.ResponseCookieBuilder builder = ResponseCookie
-            .from(audience.cookieName(), isStateKind ? token : encryptor.encrypt(token))
+            .from(audience.cookieName(), isStateKind ? token : encodeToken(token))
             .path("/")
             .secure(generateSecureCookies)
             .httpOnly(true);
@@ -82,6 +106,70 @@ public class UserTokenCookiePackager {
             builder.domain(cookieHost);
         }
         return builder.build();
+    }
+
+    private String encrypt(byte[] input) {
+        return Base64.getEncoder().withoutPadding().encodeToString(encryptor.encrypt(input));
+    }
+
+    byte[] compressToken(String token) {
+        final byte[] input = token.getBytes();
+        final Deflater deflater = new Deflater();
+        deflater.setInput(input);
+        deflater.finish();
+
+        final byte[] buffer = new byte[1024];
+        byte[] output = new byte[1024];
+        int start = 0;
+        int copied;
+        while ((copied = deflater.deflate(buffer)) == buffer.length) {
+            output = writeBytesFromBuffer(buffer, output, start, copied);
+            start += copied;
+        }
+        output = writeBytesFromBuffer(buffer, output, start, copied);
+        start += copied;
+
+        return Arrays.copyOf(output, start);
+    }
+
+    private byte[] decrypt(String input) {
+        return encryptor.decrypt(Base64.getDecoder().decode(input));
+    }
+
+    String decompressToken(byte[] input) throws DataFormatException {
+        final Inflater inflater = new Inflater();
+        inflater.setInput(input);
+        inflater.finished();
+
+        final byte[] buffer = new byte[1024];
+        byte[] output = new byte[1024];
+        int start = 0;
+        int copied;
+        while ((copied = inflater.inflate(buffer)) == buffer.length) {
+            output = writeBytesFromBuffer(buffer, output, start, copied);
+            start += copied;
+        }
+        output = writeBytesFromBuffer(buffer, output, start, copied);
+        start += copied;
+
+        return new String(Arrays.copyOf(output, start));
+    }
+
+    private byte[] writeBytesFromBuffer(byte[] buffer, byte[] output, int start, int copied) {
+        final byte[] newOutput;
+        if (output.length - start > buffer.length) {
+            newOutput = output;
+        } else {
+            newOutput = Arrays.copyOf(output, output.length * 2);
+        }
+        appendBufferToTarget(buffer, copied, start, newOutput);
+        return newOutput;
+    }
+
+    private void appendBufferToTarget(byte[] buffer, int length, int start, byte[] target) {
+        for (int i = 0; i < length; i++) {
+            target[start + i] = buffer[i];
+        }
     }
 
     public ResponseCookie packageToken(String token, CookieName audience) {
@@ -92,7 +180,7 @@ public class UserTokenCookiePackager {
      * Produces a cookie that, when set for the given hostname, clears the corresponding security authorization.
      *
      * @param cookieHost The host the returned cookie should target. Should usually point to this DDAP server, and
-     *                   should match the cookieHost passed to {@link #packageToken} on a previous request.
+     *                   should match the cookieHost passed to {@link #packageToken(String, CookieName)} on a previous request.
      * @param audience A cookie name that describes the collaborating service that honours the token and any service specific usage information
      * @return a cookie that should be sent to the user's browser to clear their DAM token.
      */
@@ -139,21 +227,9 @@ public class UserTokenCookiePackager {
     @Getter
     @ToString(exclude = "clearText")
     @EqualsAndHashCode(exclude = "clearText")
-    public class CookieValue {
+    public static class CookieValue {
         private final String cipherText;
-        private String clearText;
-
-        public String getClearText() {
-            if (clearText == null) {
-                try {
-                    clearText = encryptor.decrypt(cipherText);
-                } catch (IllegalArgumentException iae) {
-                    throw new PlainTextNotDecryptableException("Unable to decrypt text", iae);
-                }
-            }
-
-            return clearText;
-        }
+        private final String clearText;
     }
 
 }

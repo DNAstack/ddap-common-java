@@ -21,6 +21,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
+import static com.dnastack.ddap.common.OAuthConstants.DEFAULT_SCOPES;
 import static com.dnastack.ddap.common.util.http.XForwardUtil.getExternalPath;
 import static java.lang.String.format;
 import static org.springframework.http.HttpHeaders.SET_COOKIE;
@@ -28,10 +29,7 @@ import static org.springframework.http.HttpStatus.TEMPORARY_REDIRECT;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1alpha/{realm}/identity")
 public class IcOAuthFlowController {
-
-    private static final String DEFAULT_SCOPES = "openid ga4gh_passport_v1 account_admin identities";
 
     private ReactiveIcOAuthClient oAuthClient;
     private UserTokenCookiePackager cookiePackager;
@@ -53,63 +51,83 @@ public class IcOAuthFlowController {
      * Returns the absolute URL that points to the {@link #apiLogin} controller method.
      *
      * @param request the current request (required for determining this service's hostname).
-     * @param realm   the realm the returned URL should target.
      * @return Absolute URL of the URL an OAuth login flow should redirect to upon completion.
      */
-    private static URI rootLoginRedirectUrl(ServerHttpRequest request, String realm) {
-        return URI.create(getExternalPath(request,
-                                          format("/api/v1alpha/%s/identity/login", realm)));
+    private static URI rootLoginRedirectUrl(ServerHttpRequest request) {
+        return UriUtil.selfLinkToApi(request, "identity/loggedIn");
     }
 
-    @GetMapping("/logout")
-    public Mono<? extends ResponseEntity> invalidateTokens(ServerHttpRequest request, @PathVariable String realm) {
-        UserTokenCookiePackager.CookieValue refreshToken = cookiePackager.extractRequiredToken(request, UserTokenCookiePackager.CookieKind.REFRESH);
+    @GetMapping("/api/v1alpha/realm/{realm}/identity/logout")
+    public Mono<? extends ResponseEntity<?>> invalidateTokens(ServerHttpRequest request, @PathVariable String realm) {
+        Optional<UserTokenCookiePackager.CookieValue> foundRefreshToken = cookiePackager.extractToken(request, UserTokenCookiePackager.CookieKind.REFRESH);
 
         URI cookieDomainPath = UriUtil.selfLinkToApi(request, realm, "identity/token");
-        ResponseEntity response = ResponseEntity.noContent()
-                                                .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.DAM).toString())
-                                                .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.IC).toString())
-                                                .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.OAUTH_STATE).toString())
-                                                .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.REFRESH).toString())
-                                                .build();
-        return oAuthClient.revokeRefreshToken(realm, refreshToken.getClearText())
-                          .thenReturn(response)
-                          .onErrorReturn(response);
+        ResponseEntity<Void> response = ResponseEntity.noContent()
+                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.DAM).toString())
+                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.IC).toString())
+                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.OAUTH_STATE).toString())
+                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.REFRESH).toString())
+                                                      .build();
+
+        return foundRefreshToken.map(refreshToken -> oAuthClient.revokeRefreshToken(realm, refreshToken.getClearText())
+                                                                .thenReturn(response)
+                                                                .onErrorReturn(response))
+                                .orElseGet(() -> Mono.just(response));
     }
 
-    @GetMapping("/login")
+    @GetMapping("/api/v1alpha/realm/{realm}/identity/login")
     public Mono<? extends ResponseEntity<?>> apiLogin(ServerHttpRequest request,
                                                       @PathVariable String realm,
                                                       @RequestParam(required = false) URI redirectUri,
                                                       @RequestParam(defaultValue = DEFAULT_SCOPES) String scope,
                                                       @RequestParam(required = false) String loginHint) {
 
-        final String state = stateHandler.generateLoginState(redirectUri);
+        final String state = stateHandler.generateLoginState(redirectUri, realm);
 
-        final URI postLoginTokenEndpoint = UriUtil.selfLinkToApi(request, realm, "identity/token");
+        final URI postLoginTokenEndpoint = UriUtil.selfLinkToApi(request, "identity/loggedIn");
         final URI loginUri = oAuthClient.getAuthorizeUrl(realm, state, scope, postLoginTokenEndpoint, loginHint);
-        log.debug("Redirecting to IdP login chooser page {}", loginUri);
-
-        URI cookieDomainPath = UriUtil.selfLinkToApi(request, realm, "identity/token");
-        ResponseEntity<Object> redirectToLoginPage = ResponseEntity.status(TEMPORARY_REDIRECT)
-                                                                   .location(loginUri)
-                                                                   .header(SET_COOKIE, cookiePackager.packageToken(state, cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.OAUTH_STATE).toString())
-                                                                   .build();
-        return Mono.just(redirectToLoginPage);
+        return oAuthClient.testAuthorizeEndpoint(loginUri)
+                   .map(status -> {
+                       // For now try the legacy login URI on client error
+                       if (status.is4xxClientError()) {
+                           log.info("Authorize endpoint returned [{}] status: Falling back to legacy authorize endpoint", status);
+                           final URI legacyAuthorizeUrl = oAuthClient.getLegacyAuthorizeUrl(realm, state, scope, postLoginTokenEndpoint, loginHint);
+                           return doAuthorizeRedirect(request, realm, state, legacyAuthorizeUrl);
+                       } else {
+                           return doAuthorizeRedirect(request, realm, state, loginUri);
+                       }
+                   });
     }
 
-    @GetMapping("/refresh")
+    private ResponseEntity<?> doAuthorizeRedirect(ServerHttpRequest request, @PathVariable String realm, String state, URI loginUri) {
+        log.debug("Redirecting to IdP login chooser page {}", loginUri);
+
+        final URI cookieDomainPath = UriUtil.selfLinkToApi(request, realm, "identity/token");
+        return ResponseEntity.status(TEMPORARY_REDIRECT)
+                             .location(loginUri)
+                             .header(SET_COOKIE, cookiePackager.packageToken(state, cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.OAUTH_STATE).toString())
+                             .build();
+    }
+
+    @GetMapping("/api/v1alpha/realm/{realm}/identity/refresh")
     public Mono<? extends ResponseEntity<?>> refresh(ServerHttpRequest request, @PathVariable String realm) {
         UserTokenCookiePackager.CookieValue refreshToken = cookiePackager.extractRequiredToken(request, UserTokenCookiePackager.CookieKind.REFRESH);
 
         URI cookieDomainPath = UriUtil.selfLinkToApi(request, realm, "identity/token");
-        Mono<TokenResponse> refreshAccessTokenMono = oAuthClient.refreshAccessToken(realm, refreshToken.getClearText());
+        Mono<TokenResponse> refreshAccessTokenMono = oAuthClient.refreshAccessToken(realm, refreshToken.getClearText(), null);
 
-        return refreshAccessTokenMono.map((tokenResponse) -> ResponseEntity.noContent()
-                                                                           .location(UriUtil.selfLinkToUi(request, realm, "identity"))
-                                                                           .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getAccessToken(), cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.IC).toString())
-                                                                           .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getIdToken(), cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.DAM).toString())
-                                                                           .build());
+        return refreshAccessTokenMono.map((tokenResponse) -> {
+            final ResponseEntity.HeadersBuilder<?> response =
+                    ResponseEntity.noContent()
+                                  .location(UriUtil.selfLinkToUi(request, realm, "identity"))
+                                  .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getAccessToken(), cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.IC).toString())
+                                  .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getIdToken(), cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.DAM).toString());
+            if (tokenResponse.getRefreshToken() != null) {
+                response.header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getRefreshToken(), cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.REFRESH).toString());
+            }
+
+            return response.build();
+        });
     }
 
     /**
@@ -126,17 +144,18 @@ public class IcOAuthFlowController {
      * @return a redirect to the main UI along with some set-cookie headers that store the user's authentication
      * info for subsequent requests.
      */
-    @GetMapping("/token")
+    @GetMapping("/api/v1alpha/identity/loggedIn")
     public Mono<? extends ResponseEntity<?>> handleTokenRequest(ServerHttpRequest request,
-                                                                @PathVariable String realm,
                                                                 @RequestParam String code,
                                                                 @RequestParam("state") String stateParam,
                                                                 @CookieValue("oauth_state") String stateFromCookie) {
-        return oAuthClient.exchangeAuthorizationCodeForTokens(realm, rootLoginRedirectUrl(request, realm), code)
+        final OAuthStateHandler.ValidatedState validatedState = stateHandler.parseAndVerify(stateParam, stateFromCookie);
+        final String realm = validatedState.getRealm();
+        final TokenExchangePurpose tokenExchangePurpose = validatedState.getTokenExchangePurpose();
+        return oAuthClient.exchangeAuthorizationCodeForTokens(realm, rootLoginRedirectUrl(request), code)
                           .flatMap(tokenResponse -> {
-                              TokenExchangePurpose tokenExchangePurpose = stateHandler.parseAndVerify(stateParam, stateFromCookie);
-                              Optional<URI> customDestination = stateHandler.getDestinationAfterLogin(stateParam)
-                                                                            .map(possiblyRelativeUrl -> UriUtil.selfLinkToUi(request, realm, "").resolve(possiblyRelativeUrl));
+                              Optional<URI> customDestination = validatedState.getDestinationAfterLogin()
+                                                                              .map(possiblyRelativeUrl -> UriUtil.selfLinkToUi(request, realm, "").resolve(possiblyRelativeUrl));
                               if (tokenExchangePurpose == TokenExchangePurpose.LOGIN) {
                                   final URI ddapDataBrowserUrl = customDestination.orElseGet(() -> UriUtil.selfLinkToUi(request, realm, ""));
                                   return Mono.just(assembleTokenResponse(ddapDataBrowserUrl, tokenResponse));
@@ -177,13 +196,16 @@ public class IcOAuthFlowController {
             final String publicHost = redirectTo.getHost();
             final ResponseCookie damTokenCookie = cookiePackager.packageToken(token.getIdToken(), publicHost, UserTokenCookiePackager.CookieKind.DAM);
             final ResponseCookie icTokenCookie = cookiePackager.packageToken(token.getAccessToken(), publicHost, UserTokenCookiePackager.CookieKind.IC);
-            final ResponseCookie refreshTokenCookie = cookiePackager.packageToken(token.getRefreshToken(), publicHost, UserTokenCookiePackager.CookieKind.REFRESH);
-            return ResponseEntity.status(TEMPORARY_REDIRECT)
-                                 .location(redirectTo)
-                                 .header(SET_COOKIE, damTokenCookie.toString())
-                                 .header(SET_COOKIE, icTokenCookie.toString())
-                                 .header(SET_COOKIE, refreshTokenCookie.toString())
-                                 .build();
+            final ResponseEntity.BodyBuilder builder = ResponseEntity.status(TEMPORARY_REDIRECT)
+                                                                     .location(redirectTo)
+                                                                     .header(SET_COOKIE, damTokenCookie.toString())
+                                                                     .header(SET_COOKIE, icTokenCookie.toString());
+            if (token.getRefreshToken() != null) {
+                final ResponseCookie refreshTokenCookie = cookiePackager.packageToken(token.getRefreshToken(), publicHost, UserTokenCookiePackager.CookieKind.REFRESH);
+                builder.header(SET_COOKIE, refreshTokenCookie.toString());
+            }
+
+            return builder.build();
         }
     }
 

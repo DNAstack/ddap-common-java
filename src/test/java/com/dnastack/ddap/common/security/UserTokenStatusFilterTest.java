@@ -41,8 +41,6 @@ public class UserTokenStatusFilterTest {
 
     @Autowired
     private UserTokenCookiePackager cookiePackager;
-    @Autowired
-    private TokenEncryptorFactory encryptorFactory;
     @MockBean
     private ServerWebExchange exchange;
     private UserTokenStatusFilter filter;
@@ -54,9 +52,9 @@ public class UserTokenStatusFilterTest {
 
     @Test
     public void shouldTreatMalformedJwtAsExpired() {
-        assertResponseExpiresCookie(encryptorFactory.getEncryptor().encrypt("not_enough_sections"));
-        assertResponseExpiresCookie(encryptorFactory.getEncryptor().encrypt("not!.even!.base64!"));
-        assertResponseExpiresCookie(encryptorFactory.getEncryptor().encrypt("not.aHR0cHM6Ly93d3cueW91dHViZS5jb20vd2F0Y2g_dj1vSGc1U0pZUkhBMA.json"));
+        assertResponseExpiresCookie(cookiePackager.encodeToken("not_enough_sections"));
+        assertResponseExpiresCookie(cookiePackager.encodeToken("not!.even!.base64!"));
+        assertResponseExpiresCookie(cookiePackager.encodeToken("not.aHR0cHM6Ly93d3cueW91dHViZS5jb20vd2F0Y2g_dj1vSGc1U0pZUkhBMA.json"));
     }
 
     @Test
@@ -125,7 +123,7 @@ public class UserTokenStatusFilterTest {
         Map<String, Object> body = new HashMap<>();
         body.put("exp", exp.getEpochSecond());
 
-        return encryptorFactory.getEncryptor().encrypt(b64Encoder.encodeToString(jsonMapper.writeValueAsBytes(header)) +
+        return cookiePackager.encodeToken(b64Encoder.encodeToString(jsonMapper.writeValueAsBytes(header)) +
                 "." +
                 b64Encoder.encodeToString(jsonMapper.writeValueAsBytes(body)) +
                 ".");

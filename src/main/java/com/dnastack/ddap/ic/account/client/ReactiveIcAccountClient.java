@@ -13,6 +13,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import static com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieKind;
 import static java.lang.String.format;
@@ -30,7 +31,7 @@ public class ReactiveIcAccountClient {
         this.webClientFactory = webClientFactory;
     }
 
-    public Mono<IcService.AccountResponse> getAccounts(String realm, Map<CookieKind, CookieValue> tokens) {
+    public Mono<IcService.AccountResponse> getAccounts(String realm, CookieValue icToken, CookieValue refreshToken) {
         final UriTemplate template = new UriTemplate("/identity/v1alpha/{realm}/accounts/-" +
                 "?client_id={clientId}" +
                 "&client_secret={clientSecret}");
@@ -39,13 +40,16 @@ public class ReactiveIcAccountClient {
         variables.put("clientId", idpProperties.getClientId());
         variables.put("clientSecret", idpProperties.getClientSecret());
 
-        return webClientFactory.getWebClient(realm, tokens.get(CookieKind.REFRESH).getClearText(), OAuthFilter.Audience.IC)
-                .get()
-                .uri(idpProperties.getBaseUrl().resolve(template.expand(variables)))
-                .header(AUTHORIZATION, "Bearer " + tokens.get(CookieKind.IC).getClearText())
-                .retrieve()
-                .bodyToMono(String.class)
-                .flatMap(json -> ProtobufDeserializer.fromJson(json, IcService.AccountResponse.getDefaultInstance()));
+        final String refreshTokenClearText = Optional.ofNullable(refreshToken)
+                                                     .map(CookieValue::getClearText)
+                                                     .orElse(null);
+        return webClientFactory.getWebClient(realm, refreshTokenClearText, OAuthFilter.Audience.IC)
+                               .get()
+                               .uri(idpProperties.getBaseUrl().resolve(template.expand(variables)))
+                               .header(AUTHORIZATION, "Bearer " + icToken.getClearText())
+                               .retrieve()
+                               .bodyToMono(String.class)
+                               .flatMap(json -> ProtobufDeserializer.fromJson(json, IcService.AccountResponse.getDefaultInstance()));
     }
 
     public Mono<String> linkAccounts(String realm,

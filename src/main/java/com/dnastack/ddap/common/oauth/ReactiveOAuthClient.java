@@ -140,7 +140,7 @@ public class ReactiveOAuthClient {
                                                              "&clientId={clientId}" +
                                                              "&clientSecret={clientSecret}");
         final Map<String, Object> variables = new HashMap<>();
-        variables.put("tokenEndpoint", authServerInfo.getResolver().getTokenEndpoint(realm));
+        variables.put("tokenEndpoint", authServerInfo.getLegacyResolver().getTokenEndpoint(realm));
         variables.put("refreshToken", refreshToken);
         variables.put("clientId", authServerInfo.getClientId());
         variables.put("clientSecret", authServerInfo.getClientSecret());

@@ -54,34 +54,29 @@ public class UserTokenStatusFilter implements WebFilter {
         final ServerHttpRequest originalRequest = exchange.getRequest();
         final ServerHttpResponse mutableResponse = exchange.getResponse();
 
-        Optional<CookieValue> extractedDamToken = cookiePackager.extractToken(originalRequest, CookieKind.DAM);
-        Optional<CookieValue> extractedIcToken = cookiePackager.extractToken(originalRequest, CookieKind.IC);
-
-        final boolean isDamTokenStaleOrExpired = extractedDamToken
-            .map((token) -> isStaleOrExpiredToken(originalRequest, mutableResponse, token, CookieKind.DAM))
-            .orElse(true);
-        final boolean isIcTokenStaleOrExpired = extractedIcToken
-            .map((token) -> isStaleOrExpiredToken(originalRequest, mutableResponse, token, CookieKind.IC))
-            .orElse(true);
+        final boolean isDamTokenStaleOrExpired = isStaleOrExpiredToken(originalRequest, mutableResponse, CookieKind.DAM);
+        final boolean isIcTokenStaleOrExpired = isStaleOrExpiredToken(originalRequest, mutableResponse, CookieKind.IC);
 
         mutableResponse.getHeaders().add("X-DDAP-Authenticated", Boolean.toString(!isDamTokenStaleOrExpired || !isIcTokenStaleOrExpired));
 
         return chain.filter(exchange);
     }
 
-    private boolean isStaleOrExpiredToken(ServerHttpRequest originalRequest, ServerHttpResponse mutableResponse, CookieValue token, CookieKind cookieKind) {
+    private boolean isStaleOrExpiredToken(ServerHttpRequest originalRequest, ServerHttpResponse mutableResponse, CookieKind cookieKind) {
         try {
-            if (isJwtTokenExpired(token.getClearText())) {
+            final Optional<CookieValue> cookieValue = cookiePackager.extractToken(originalRequest, cookieKind);
+            if (cookieValue.isPresent() && isJwtTokenExpired(cookieValue.get().getClearText())) {
                 log.info("Clearing expired token cookie " + cookieKind);
                 clearExpiredToken(originalRequest, mutableResponse, cookieKind);
                 return true;
+            } else {
+                return cookieValue.isEmpty();
             }
         } catch (PlainTextNotDecryptableException ptnde) {
             log.warn("Clearing stale token cookie " + cookieKind, ptnde);
             clearExpiredToken(originalRequest, mutableResponse, cookieKind);
             return true;
         }
-        return false;
     }
 
     private void clearExpiredToken(ServerHttpRequest originalRequest, ServerHttpResponse mutableResponse, CookieKind cookieKind) {

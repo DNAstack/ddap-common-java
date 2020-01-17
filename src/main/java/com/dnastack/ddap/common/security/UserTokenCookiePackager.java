@@ -45,18 +45,36 @@ public class UserTokenCookiePackager {
      * @param audience A cookie name that describes the collaborating service that honours the token and any service specific usage information
      * @return A string that can be used as a bearer token in a request to DAM, or {@code Optional.empty}
      * if the given request doesn't contain a usable token.
+     * @throws PlainTextNotDecryptableException If the cookie value cannot be properly decoded.
      */
-    public Optional<CookieValue> extractToken(ServerHttpRequest request, CookieName audience) {
-        return Optional.ofNullable(request.getCookies().getFirst(audience.cookieName()))
-                       .map(HttpCookie::getValue)
-                       .flatMap(cookie -> {
-                           try {
-                               final String clearText = decodeToken(cookie);
-                               return Optional.of(new CookieValue(cookie, clearText));
-                           } catch (DataFormatException e) {
-                               return Optional.empty();
-                           }
-                       });
+    public Optional<CookieValue> extractToken(ServerHttpRequest request, CookieName audience) throws PlainTextNotDecryptableException {
+        // FIXME this API (returning Optional and throwing checked exception) sucks.
+        // We should probably move away from Optional to a type that encapsulate all states (not present, present+invalid, present+valid)
+        final Optional<String> foundCookieValue = Optional.ofNullable(request.getCookies().getFirst(audience.cookieName()))
+                                                          .map(HttpCookie::getValue);
+        if (foundCookieValue.isPresent()) {
+            final String cookie = foundCookieValue.get();
+            final String clearText = decodeToken(cookie);
+            return Optional.of(new CookieValue(cookie, clearText));
+        } else {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Extracts a security token from the given request, which carries it in an encrypted cookie.
+     *
+     * @param request the request that originated from the user and probably contains the encrypted DAM token.
+     * @param audience A cookie name that describes the collaborating service that honours the token and any service specific usage information
+     * @return A string that can be used as a bearer token in a request to DAM, or {@code Optional.empty}
+     * if the given request doesn't contain a usable token.
+     */
+    public Optional<CookieValue> extractTokenIgnoringInvalid(ServerHttpRequest request, CookieName audience) {
+        try {
+            return extractToken(request, audience);
+        } catch (PlainTextNotDecryptableException e) {
+            return Optional.empty();
+        }
     }
 
     /**
@@ -71,13 +89,21 @@ public class UserTokenCookiePackager {
      * Decodes token encrypted/compressed value.
      * Most users should prefer {@link #extractToken(ServerHttpRequest, CookieName)}.
      */
-    public String decodeToken(String cookie) throws DataFormatException {
-        return decompressToken(decrypt(cookie));
+    public String decodeToken(String cookie) throws PlainTextNotDecryptableException {
+        try {
+            return decompressToken(decrypt(cookie));
+        } catch (Exception e) {
+            throw new PlainTextNotDecryptableException(e);
+        }
     }
 
     public CookieValue extractRequiredToken(ServerHttpRequest request, CookieName audience) {
-        return extractToken(request, audience)
-                .orElseThrow(() -> new AuthCookieNotPresentInRequestException(audience.cookieName()));
+        try {
+            return extractToken(request, audience)
+                    .orElseThrow(() -> new AuthCookieNotPresentInRequestException(audience.cookieName()));
+        } catch (PlainTextNotDecryptableException e) {
+            throw new AuthCookieNotPresentInRequestException(audience.cookieName());
+        }
     }
 
     public <N extends CookieName> Map<N, CookieValue> extractRequiredTokens(ServerHttpRequest request, Set<N> audiences) {

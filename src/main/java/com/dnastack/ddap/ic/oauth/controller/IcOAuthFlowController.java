@@ -59,7 +59,7 @@ public class IcOAuthFlowController {
 
     @GetMapping("/api/v1alpha/realm/{realm}/identity/logout")
     public Mono<? extends ResponseEntity<?>> invalidateTokens(ServerHttpRequest request, @PathVariable String realm) {
-        Optional<UserTokenCookiePackager.CookieValue> foundRefreshToken = cookiePackager.extractToken(request, UserTokenCookiePackager.CookieKind.REFRESH);
+        final Optional<UserTokenCookiePackager.CookieValue> foundRefreshToken = cookiePackager.extractTokenIgnoringInvalid(request, UserTokenCookiePackager.CookieKind.REFRESH);
 
         URI cookieDomainPath = UriUtil.selfLinkToApi(request, realm, "identity/token");
         ResponseEntity<Void> response = ResponseEntity.noContent()

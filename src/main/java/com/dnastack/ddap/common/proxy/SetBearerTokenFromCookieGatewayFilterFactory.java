@@ -27,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
+import org.springframework.http.HttpCookie;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Component;
@@ -62,19 +63,11 @@ public class SetBearerTokenFromCookieGatewayFilterFactory extends AbstractGatewa
         return (exchange, chain) -> {
             final ServerHttpRequest request = exchange.getRequest();
 
-            Optional<CookieValue> extractedToken = cookiePackager.extractToken(request, config.getCookieKind());
+            Optional<String> extractedToken = extractCookieValue(config, request);
 
             if (extractedToken.isPresent()) {
                 log.debug("Including {} token in this request", config.getCookieKind());
-                final CookieValue token = extractedToken.get();
-                String tokenValue;
-
-                try {
-                    tokenValue = token.getClearText();
-                } catch (PlainTextNotDecryptableException ptnde) {
-                    log.info("Request was made with stale {} token. Passing through with original cookie value.", config.getCookieKind());
-                    tokenValue = token.getCipherText();
-                }
+                final String tokenValue = extractedToken.get();
 
                 final ServerHttpRequest requestWithToken = request.mutate()
                     .header("Authorization", format("Bearer %s", tokenValue))
@@ -87,6 +80,17 @@ public class SetBearerTokenFromCookieGatewayFilterFactory extends AbstractGatewa
                 return chain.filter(exchange);
             }
         };
+    }
+
+    public Optional<String> extractCookieValue(Config config, ServerHttpRequest request) {
+        try {
+            return cookiePackager.extractToken(request, config.getCookieKind())
+                                 .map(CookieValue::getClearText);
+        } catch (PlainTextNotDecryptableException e) {
+            log.debug("Unable to decrypt cookie. Passing through unaltered.");
+            return Optional.ofNullable(request.getCookies().getFirst(config.getCookieKind().cookieName()))
+                           .map(HttpCookie::getValue);
+        }
     }
 
     @Data

@@ -43,7 +43,7 @@ public class BasicAccountController {
     @GetMapping
     public Mono<? extends ResponseEntity<?>> getIdentity(ServerHttpRequest request, @PathVariable String realm) {
         final CookieValue icToken = cookiePackager.extractRequiredToken(request, CookieKind.IC);
-        final CookieValue refreshToken = cookiePackager.extractToken(request, CookieKind.REFRESH).orElse(null);
+        final CookieValue refreshToken = cookiePackager.extractTokenIgnoringInvalid(request, CookieKind.REFRESH).orElse(null);
 
         Mono<IcService.AccountResponse> accountMono = idpClient.getAccounts(realm, icToken, refreshToken);
 

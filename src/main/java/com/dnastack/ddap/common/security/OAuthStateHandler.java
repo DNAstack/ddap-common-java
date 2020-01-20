@@ -1,17 +1,22 @@
 package com.dnastack.ddap.common.security;
 
-import io.jsonwebtoken.*;
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieName;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.security.Keys;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpCookie;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
 import java.time.Duration;
 import java.util.*;
 
+import static java.lang.String.format;
 import static java.util.Collections.singletonMap;
 
 /**
@@ -67,15 +72,30 @@ public class OAuthStateHandler {
                          .compact();
     }
 
-    public ValidatedState parseAndVerify(String stateStringParam, String stateStringCookie) {
+    public ValidatedState parseAndVerify(ServerHttpRequest request, CookieName cookieName) {
+        final String stateStringParam = request.getQueryParams()
+                                               .getFirst("state");
+        final HttpCookie stateCookie = request.getCookies()
+                                              .getFirst(cookieName.cookieName());
+        final String stateStringCookie;
+
+        if (stateCookie == null) {
+            throw new InvalidOAuthStateException(format("Missing '%s' cookie", cookieName.cookieName()), null, cookieName);
+        } else {
+            stateStringCookie = stateCookie.getValue();
+        }
+        if (stateStringParam == null) {
+            throw new InvalidOAuthStateException("Missing 'state' parameter", null, cookieName);
+        }
+
         if (!Objects.equals(stateStringParam, stateStringCookie)) {
-            throw new InvalidOAuthStateException("CSRF state cookie mismatch", stateStringCookie);
+            throw new InvalidOAuthStateException("CSRF state cookie mismatch", stateStringCookie, cookieName);
         }
         try {
             Jws<Claims> state = parseStateToken(stateStringParam);
             return new ValidatedState(state.getBody());
         } catch (Exception e) {
-            throw new InvalidOAuthStateException("Invalid state token", e, stateStringParam);
+            throw new InvalidOAuthStateException("Invalid state token", stateStringParam, cookieName, e);
         }
     }
 

@@ -66,7 +66,7 @@ spring:
             - AddRequestParameter=clientId,${idp.client-id}
             - AddRequestParameter=clientSecret,${idp.client-secret}
             - RemoveRequestHeader=Authorization
-            - SetBearerTokenFromCookie=IC
+            - SetBearerTokenFromCookie=IC,ACCESS
           uri: ${idp.base-url}
 logging:
   level:

@@ -13,7 +13,6 @@ import org.springframework.security.crypto.encrypt.BytesEncryptor;
 import org.springframework.security.crypto.encrypt.Encryptors;
 import org.springframework.stereotype.Component;
 
-import java.net.URI;
 import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -122,9 +121,8 @@ public class UserTokenCookiePackager {
      * @return a cookie that should be sent to the user's browser.
      */
     public ResponseCookie packageToken(String token, String cookieHost, CookieName audience) {
-        boolean isStateKind = audience instanceof CookieKind && audience.equals(CookieKind.OAUTH_STATE);
         ResponseCookie.ResponseCookieBuilder builder = ResponseCookie
-            .from(audience.cookieName(), isStateKind ? token : encodeToken(token))
+            .from(audience.cookieName(), audience.encoded() ? encodeToken(token) : token)
             .path("/")
             .secure(generateSecureCookies)
             .httpOnly(true);
@@ -220,32 +218,55 @@ public class UserTokenCookiePackager {
 
     public interface CookieName {
         String cookieName();
-    }
-
-    public enum CookieKind implements CookieName {
-        IC("ic_token"),
-        DAM("dam_token"),
-        REFRESH("refresh_token"),
-        OAUTH_STATE("oauth_state");
-
-        private String cookieName;
-
-        CookieKind(String cookieName) {
-            this.cookieName = cookieName;
-        }
-
-        public String cookieName() {
-            return cookieName;
+        default boolean encoded() {
+            return true;
         }
     }
 
     @lombok.Value
-    public static class CartTokenCookieName implements CookieName {
-        private Set<URI> resources;
+    public static class OAuthTokenCookie implements CookieName {
+        private final ServiceName serviceIdentifier;
+        private final TokenKind tokenKind;
 
         @Override
         public String cookieName() {
-            return "cart_" + resources.hashCode();
+            return serviceIdentifier.toString() + "_" + tokenKind.toString();
+        }
+
+        @Override
+        public boolean encoded() {
+            return !TokenKind.OAUTH_STATE.equals(tokenKind);
+        }
+    }
+
+    /**
+     * Marker interface for service names used in {@link CookieName}.
+     */
+    public interface ServiceName {
+    }
+
+    public enum BasicServices implements ServiceName {
+        DAM, IC;
+
+        public CookieName cookieName(TokenKind tokenKind) {
+            return new OAuthTokenCookie(this, tokenKind);
+        }
+
+        @Override
+        public String toString() {
+            return super.toString().toLowerCase();
+        }
+    }
+
+    public enum TokenKind {
+        ACCESS,
+        IDENTITY,
+        REFRESH,
+        OAUTH_STATE;
+
+        @Override
+        public String toString() {
+            return super.toString().toLowerCase();
         }
     }
 

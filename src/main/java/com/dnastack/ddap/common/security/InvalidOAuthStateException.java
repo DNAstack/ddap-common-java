@@ -1,5 +1,6 @@
 package com.dnastack.ddap.common.security;
 
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieName;
 import lombok.Getter;
 
 /**
@@ -9,14 +10,18 @@ public class InvalidOAuthStateException extends RuntimeException {
 
     @Getter
     private final String stateToken;
+    @Getter
+    private final CookieName cookieName;
 
-    public InvalidOAuthStateException(String message, String stateToken) {
+    public InvalidOAuthStateException(String message, String stateToken, CookieName cookieName) {
         super(message);
         this.stateToken = stateToken;
+        this.cookieName = cookieName;
     }
 
-    public InvalidOAuthStateException(String message, Exception cause, String stateToken) {
+    public InvalidOAuthStateException(String message, String stateToken, CookieName cookieName, Exception cause) {
         super(message, cause);
         this.stateToken = stateToken;
+        this.cookieName = cookieName;
     }
 }

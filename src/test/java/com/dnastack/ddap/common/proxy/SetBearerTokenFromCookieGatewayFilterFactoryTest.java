@@ -1,8 +1,10 @@
 package com.dnastack.ddap.common.proxy;
 
 import com.dnastack.ddap.common.TokenEncryptorFactory;
+import com.dnastack.ddap.common.proxy.SetBearerTokenFromCookieGatewayFilterFactory.Service;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
-import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieKind;
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicServices;
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.TokenKind;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -38,7 +40,8 @@ public class SetBearerTokenFromCookieGatewayFilterFactoryTest {
     public void setUp() {
         SetBearerTokenFromCookieGatewayFilterFactory filterFactory = new SetBearerTokenFromCookieGatewayFilterFactory(cookiePackager);
         SetBearerTokenFromCookieGatewayFilterFactory.Config config = new SetBearerTokenFromCookieGatewayFilterFactory.Config();
-        config.setCookieKind(CookieKind.DAM);
+        config.setService(Service.IC);
+        config.setTokenKind(TokenKind.IDENTITY);
         filter = filterFactory.apply(config);
     }
 
@@ -50,7 +53,7 @@ public class SetBearerTokenFromCookieGatewayFilterFactoryTest {
 
         ServerWebExchange exchange = MockServerWebExchange.from(
             MockServerHttpRequest.get("http://example.com/anything")
-                .cookie(new HttpCookie(CookieKind.DAM.cookieName(), cookiePackager.encodeToken(cookieToken)))
+                .cookie(new HttpCookie(BasicServices.IC.cookieName(TokenKind.IDENTITY).cookieName(), cookiePackager.encodeToken(cookieToken)))
                 .build());
 
         GatewayFilterChain chain = mock(GatewayFilterChain.class);

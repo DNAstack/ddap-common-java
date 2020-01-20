@@ -19,9 +19,10 @@ package com.dnastack.ddap.common.proxy;
 
 import com.dnastack.ddap.common.security.PlainTextNotDecryptableException;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
-import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieKind;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieValue;
-import com.dnastack.ddap.common.util.http.XForwardUtil;
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.OAuthTokenCookie;
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.ServiceName;
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.TokenKind;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,15 +30,12 @@ import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.http.HttpCookie;
 import org.springframework.http.server.reactive.ServerHttpRequest;
-import org.springframework.security.core.parameters.P;
 import org.springframework.stereotype.Component;
 
-import java.net.URI;
 import java.util.List;
 import java.util.Optional;
 
 import static java.lang.String.format;
-import static java.util.Collections.singletonList;
 import static java.util.Objects.requireNonNull;
 
 @Slf4j
@@ -54,19 +52,21 @@ public class SetBearerTokenFromCookieGatewayFilterFactory extends AbstractGatewa
 
     @Override
     public List<String> shortcutFieldOrder() {
-        return singletonList("cookieKind");
+        return List.of("service", "tokenKind");
     }
 
     @Override
     public GatewayFilter apply(Config config) {
-        requireNonNull(config.getCookieKind(), "Must specify token audience in filter config.");
+        requireNonNull(config.getService(), "Must specify service in filter config.");
+        requireNonNull(config.getTokenKind(), "Must specify token kind in filter config.");
+        final UserTokenCookiePackager.CookieName cookieName = new OAuthTokenCookie(config.getService(), config.getTokenKind());
         return (exchange, chain) -> {
             final ServerHttpRequest request = exchange.getRequest();
 
-            Optional<String> extractedToken = extractCookieValue(config, request);
+            Optional<String> extractedToken = extractCookieValue(cookieName, request);
 
             if (extractedToken.isPresent()) {
-                log.debug("Including {} token in this request", config.getCookieKind());
+                log.debug("Including {} token in this request", cookieName);
                 final String tokenValue = extractedToken.get();
 
                 final ServerHttpRequest requestWithToken = request.mutate()
@@ -76,26 +76,36 @@ public class SetBearerTokenFromCookieGatewayFilterFactory extends AbstractGatewa
                     .request(requestWithToken)
                     .build());
             } else {
-                log.debug("No {} token available for this request", config.getCookieKind());
+                log.debug("No {} token available for this request", cookieName);
                 return chain.filter(exchange);
             }
         };
     }
 
-    public Optional<String> extractCookieValue(Config config, ServerHttpRequest request) {
+    public Optional<String> extractCookieValue(UserTokenCookiePackager.CookieName cookieName, ServerHttpRequest request) {
         try {
-            return cookiePackager.extractToken(request, config.getCookieKind())
+            return cookiePackager.extractToken(request, cookieName)
                                  .map(CookieValue::getClearText);
         } catch (PlainTextNotDecryptableException e) {
             log.debug("Unable to decrypt cookie. Passing through unaltered.");
-            return Optional.ofNullable(request.getCookies().getFirst(config.getCookieKind().cookieName()))
+            return Optional.ofNullable(request.getCookies().getFirst(cookieName.cookieName()))
                            .map(HttpCookie::getValue);
         }
     }
 
     @Data
     public static class Config {
-        private CookieKind cookieKind;
+        private Service service;
+        private TokenKind tokenKind;
+    }
+
+    public enum Service implements ServiceName {
+        IC, DAM;
+
+        @Override
+        public String toString() {
+            return super.toString().toLowerCase();
+        }
     }
 
 }

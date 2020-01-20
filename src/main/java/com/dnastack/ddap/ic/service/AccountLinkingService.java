@@ -1,5 +1,8 @@
 package com.dnastack.ddap.ic.service;
 
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicServices;
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieName;
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.TokenKind;
 import com.dnastack.ddap.ic.account.client.ReactiveIcAccountClient;
 import com.dnastack.ddap.ic.common.security.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,8 +10,6 @@ import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;
-
-import static com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieKind;
 
 @Component
 public class AccountLinkingService {
@@ -20,10 +21,16 @@ public class AccountLinkingService {
         this.accountClient = accountClient;
     }
 
-    public Mono<String> unlinkAccount(String realm, Map<CookieKind, String> tokens, String subjectName) {
-        String accountId = JwtUtil.dangerousStopgapExtractSubject(tokens.get(CookieKind.IC)).map(JwtUtil.JwtSubject::getSub).orElse(null);
+    public Mono<String> unlinkAccount(String realm, Map<CookieName, String> tokens, String subjectName) {
+        String accountId = JwtUtil.dangerousStopgapExtractSubject(tokens.get(BasicServices.IC
+                                                                                     .cookieName(TokenKind.ACCESS)))
+                                  .map(JwtUtil.JwtSubject::getSub)
+                                  .orElse(null);
 
-        return accountClient.unlinkAccount(realm, accountId, tokens.get(CookieKind.IC), tokens.get(CookieKind.REFRESH), subjectName);
+        return accountClient.unlinkAccount(realm,
+                                           accountId,
+                                           tokens.get(BasicServices.IC.cookieName(TokenKind.ACCESS)), tokens.get(BasicServices.DAM.cookieName(TokenKind.REFRESH)),
+                                           subjectName);
     }
 
     public Mono<String> finishAccountLinking(String newAccountLinkToken,

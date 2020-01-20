@@ -9,7 +9,6 @@ import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
-import static com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieKind.OAUTH_STATE;
 import static org.springframework.http.HttpHeaders.SET_COOKIE;
 
 @Slf4j
@@ -28,7 +27,7 @@ public class GlobalExceptionHandler {
         log.info("Failing token exchange due to bad state value " + ex.getStateToken(), ex);
         return ResponseEntity
             .status(400)
-            .header(SET_COOKIE, cookiePackager.clearToken(XForwardUtil.getExternalHost(request), OAUTH_STATE).toString())
+            .header(SET_COOKIE, cookiePackager.clearToken(XForwardUtil.getExternalHost(request), ex.getCookieName()).toString())
             .body(new DdapErrorResponse(ex.getMessage(), 400));
     }
 

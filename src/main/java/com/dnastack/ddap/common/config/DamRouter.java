@@ -4,6 +4,7 @@ import com.dnastack.ddap.common.proxy.LoggingGatewayFilterFactory;
 import com.dnastack.ddap.common.proxy.SetBearerTokenFromCookieGatewayFilterFactory;
 import com.dnastack.ddap.common.proxy.TimeoutAndRetryGatewayFilterFactory;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.TokenKind;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
@@ -14,6 +15,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.Map;
 
+import static com.dnastack.ddap.common.proxy.SetBearerTokenFromCookieGatewayFilterFactory.Service.IC;
 import static java.lang.String.format;
 
 @Configuration
@@ -46,7 +48,8 @@ public class DamRouter {
         final GatewayFilter loggingFilter = loggingFilterFactory.apply(new Object());
 
         final SetBearerTokenFromCookieGatewayFilterFactory.Config bearerTokenConfig = new SetBearerTokenFromCookieGatewayFilterFactory.Config();
-        bearerTokenConfig.setCookieKind(UserTokenCookiePackager.CookieKind.DAM);
+        bearerTokenConfig.setService(IC);
+        bearerTokenConfig.setTokenKind(TokenKind.IDENTITY);
         final GatewayFilter bearerTokenFilter = bearerTokenFilterFactory.apply(bearerTokenConfig);
 
         RouteLocatorBuilder.Builder routesBuilder = builder.routes();

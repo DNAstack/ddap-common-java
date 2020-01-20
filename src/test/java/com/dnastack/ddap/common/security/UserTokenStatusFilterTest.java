@@ -1,6 +1,7 @@
 package com.dnastack.ddap.common.security;
 
 import com.dnastack.ddap.common.TokenEncryptorFactory;
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.TokenKind;
 import com.dnastack.ddap.common.security.filter.UserTokenStatusFilter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,7 +28,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
-import static com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieKind.DAM;
+import static com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicServices.IC;
 import static java.lang.String.format;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
@@ -47,7 +48,7 @@ public class UserTokenStatusFilterTest {
 
     @Before
     public void setUp() throws Exception {
-        this.filter = new UserTokenStatusFilter(cookiePackager);
+        this.filter = new UserTokenStatusFilter(cookiePackager, IC.cookieName(TokenKind.IDENTITY));
     }
 
     @Test
@@ -84,7 +85,7 @@ public class UserTokenStatusFilterTest {
 
     private void assertResponseExpiresCookie(String jwtValue) {
         ResponseCookie responseCookie = runFilterAndExtractResponseCookie(jwtValue);
-        assertThat(format("Expected a '%s' cookie in the response", DAM.cookieName()), responseCookie, notNullValue());
+        assertThat(format("Expected a '%s' cookie in the response", IC.cookieName(TokenKind.IDENTITY).cookieName()), responseCookie, notNullValue());
         assertThat(responseCookie.getValue(), is("expired"));
         assertThat(responseCookie.getMaxAge(), is(Duration.ZERO));
     }
@@ -98,7 +99,7 @@ public class UserTokenStatusFilterTest {
         // given
         ServerWebExchange exchange = MockServerWebExchange.from(
             MockServerHttpRequest.get("http://example.com/anything")
-                .cookie(new HttpCookie(DAM.cookieName(), jwtValue)).build()
+                .cookie(new HttpCookie(IC.cookieName(TokenKind.IDENTITY).cookieName(), jwtValue)).build()
         );
 
         WebFilterChain chain = mock(WebFilterChain.class);
@@ -109,7 +110,7 @@ public class UserTokenStatusFilterTest {
         // then
         ArgumentCaptor<ServerWebExchange> result = ArgumentCaptor.forClass(ServerWebExchange.class);
         verify(chain).filter(result.capture());
-        return result.getValue().getResponse().getCookies().getFirst(DAM.cookieName());
+        return result.getValue().getResponse().getCookies().getFirst(IC.cookieName(TokenKind.IDENTITY).cookieName());
     }
 
     private String fakeUserToken(Instant exp) throws JsonProcessingException {

@@ -1,9 +1,9 @@
 package com.dnastack.ddap.common.client;
 
-import com.dnastack.ddap.common.OAuthConstants;
-import com.dnastack.ddap.ic.oauth.model.TokenResponse;
-import com.dnastack.ddap.ic.oauth.client.ReactiveIcOAuthClient;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.TokenKind;
+import com.dnastack.ddap.ic.oauth.client.ReactiveIcOAuthClient;
+import com.dnastack.ddap.ic.oauth.model.TokenResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -12,11 +12,9 @@ import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import reactor.core.publisher.Mono;
 
-import java.util.Arrays;
 import java.util.function.Function;
 
-import static com.dnastack.ddap.common.OAuthConstants.DEFAULT_SCOPES;
-import static java.util.stream.Collectors.joining;
+import static com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicServices.IC;
 import static org.springframework.http.HttpHeaders.SET_COOKIE;
 
 @Slf4j
@@ -51,10 +49,10 @@ public class OAuthFilter {
                             final ClientResponse.Builder builder =
                                     ClientResponse.from(retryResponse)
                                                   // TODO: DISCO-2311 find out how to propagate Set-Cookie to endpoint
-                                                  .header(SET_COOKIE, cookiePackager.packageToken(token.getAccessToken(), UserTokenCookiePackager.CookieKind.IC).toString())
-                                                  .header(SET_COOKIE, cookiePackager.packageToken(token.getIdToken(), UserTokenCookiePackager.CookieKind.DAM).toString());
+                                                  .header(SET_COOKIE, cookiePackager.packageToken(token.getAccessToken(), IC.cookieName(TokenKind.ACCESS)).toString())
+                                                  .header(SET_COOKIE, cookiePackager.packageToken(token.getIdToken(), IC.cookieName(TokenKind.IDENTITY)).toString());
                             if (token.getRefreshToken() != null) {
-                                builder.header(SET_COOKIE, cookiePackager.packageToken(token.getRefreshToken(), UserTokenCookiePackager.CookieKind.REFRESH).toString());
+                                builder.header(SET_COOKIE, cookiePackager.packageToken(token.getRefreshToken(), IC.cookieName(TokenKind.REFRESH)).toString());
                             }
                             return builder.build();
                         });

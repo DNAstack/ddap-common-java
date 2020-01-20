@@ -3,6 +3,7 @@ package com.dnastack.ddap.ic.oauth.controller;
 import com.dnastack.ddap.common.security.OAuthStateHandler;
 import com.dnastack.ddap.common.security.TokenExchangePurpose;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
+import com.dnastack.ddap.common.security.UserTokenCookiePackager.TokenKind;
 import com.dnastack.ddap.common.util.http.UriUtil;
 import com.dnastack.ddap.ic.oauth.client.ReactiveIcOAuthClient;
 import com.dnastack.ddap.ic.oauth.client.TokenExchangeException;
@@ -13,7 +14,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.server.reactive.ServerHttpRequest;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
@@ -22,8 +26,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static com.dnastack.ddap.common.OAuthConstants.DEFAULT_SCOPES;
-import static com.dnastack.ddap.common.util.http.XForwardUtil.getExternalPath;
-import static java.lang.String.format;
+import static com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicServices.IC;
 import static org.springframework.http.HttpHeaders.SET_COOKIE;
 import static org.springframework.http.HttpStatus.TEMPORARY_REDIRECT;
 
@@ -59,14 +62,14 @@ public class IcOAuthFlowController {
 
     @GetMapping("/api/v1alpha/realm/{realm}/identity/logout")
     public Mono<? extends ResponseEntity<?>> invalidateTokens(ServerHttpRequest request, @PathVariable String realm) {
-        final Optional<UserTokenCookiePackager.CookieValue> foundRefreshToken = cookiePackager.extractTokenIgnoringInvalid(request, UserTokenCookiePackager.CookieKind.REFRESH);
+        final Optional<UserTokenCookiePackager.CookieValue> foundRefreshToken = cookiePackager.extractTokenIgnoringInvalid(request, IC.cookieName(TokenKind.REFRESH));
 
         URI cookieDomainPath = UriUtil.selfLinkToApi(request, realm, "identity/token");
         ResponseEntity<Void> response = ResponseEntity.noContent()
-                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.DAM).toString())
-                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.IC).toString())
-                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.OAUTH_STATE).toString())
-                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.REFRESH).toString())
+                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), IC.cookieName(TokenKind.ACCESS)).toString())
+                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), IC.cookieName(TokenKind.IDENTITY)).toString())
+                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), IC.cookieName(TokenKind.OAUTH_STATE)).toString())
+                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), IC.cookieName(TokenKind.REFRESH)).toString())
                                                       .build();
 
         return foundRefreshToken.map(refreshToken -> oAuthClient.revokeRefreshToken(realm, refreshToken.getClearText())
@@ -105,13 +108,13 @@ public class IcOAuthFlowController {
         final URI cookieDomainPath = UriUtil.selfLinkToApi(request, realm, "identity/token");
         return ResponseEntity.status(TEMPORARY_REDIRECT)
                              .location(loginUri)
-                             .header(SET_COOKIE, cookiePackager.packageToken(state, cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.OAUTH_STATE).toString())
+                             .header(SET_COOKIE, cookiePackager.packageToken(state, cookieDomainPath.getHost(), IC.cookieName(TokenKind.OAUTH_STATE)).toString())
                              .build();
     }
 
     @GetMapping("/api/v1alpha/realm/{realm}/identity/refresh")
     public Mono<? extends ResponseEntity<?>> refresh(ServerHttpRequest request, @PathVariable String realm) {
-        UserTokenCookiePackager.CookieValue refreshToken = cookiePackager.extractRequiredToken(request, UserTokenCookiePackager.CookieKind.REFRESH);
+        UserTokenCookiePackager.CookieValue refreshToken = cookiePackager.extractRequiredToken(request, IC.cookieName(TokenKind.REFRESH));
 
         URI cookieDomainPath = UriUtil.selfLinkToApi(request, realm, "identity/token");
         Mono<TokenResponse> refreshAccessTokenMono = oAuthClient.refreshAccessToken(realm, refreshToken.getClearText(), null);
@@ -120,10 +123,10 @@ public class IcOAuthFlowController {
             final ResponseEntity.HeadersBuilder<?> response =
                     ResponseEntity.noContent()
                                   .location(UriUtil.selfLinkToUi(request, realm, "identity"))
-                                  .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getAccessToken(), cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.IC).toString())
-                                  .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getIdToken(), cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.DAM).toString());
+                                  .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getAccessToken(), cookieDomainPath.getHost(), IC.cookieName(TokenKind.ACCESS)).toString())
+                                  .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getIdToken(), cookieDomainPath.getHost(), IC.cookieName(TokenKind.IDENTITY)).toString());
             if (tokenResponse.getRefreshToken() != null) {
-                response.header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getRefreshToken(), cookieDomainPath.getHost(), UserTokenCookiePackager.CookieKind.REFRESH).toString());
+                response.header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getRefreshToken(), cookieDomainPath.getHost(), IC.cookieName(TokenKind.REFRESH)).toString());
             }
 
             return response.build();
@@ -146,10 +149,9 @@ public class IcOAuthFlowController {
      */
     @GetMapping("/api/v1alpha/identity/loggedIn")
     public Mono<? extends ResponseEntity<?>> handleTokenRequest(ServerHttpRequest request,
-                                                                @RequestParam String code,
-                                                                @RequestParam("state") String stateParam,
-                                                                @CookieValue("oauth_state") String stateFromCookie) {
-        final OAuthStateHandler.ValidatedState validatedState = stateHandler.parseAndVerify(stateParam, stateFromCookie);
+                                                                @RequestParam String code) {
+        final UserTokenCookiePackager.CookieName cookieName = IC.cookieName(TokenKind.OAUTH_STATE);
+        final OAuthStateHandler.ValidatedState validatedState = stateHandler.parseAndVerify(request, cookieName);
         final String realm = validatedState.getRealm();
         final TokenExchangePurpose tokenExchangePurpose = validatedState.getTokenExchangePurpose();
         return oAuthClient.exchangeAuthorizationCodeForTokens(realm, rootLoginRedirectUrl(request), code)
@@ -194,14 +196,14 @@ public class IcOAuthFlowController {
             throw new IllegalArgumentException("Incomplete token response: missing " + missingItems);
         } else {
             final String publicHost = redirectTo.getHost();
-            final ResponseCookie damTokenCookie = cookiePackager.packageToken(token.getIdToken(), publicHost, UserTokenCookiePackager.CookieKind.DAM);
-            final ResponseCookie icTokenCookie = cookiePackager.packageToken(token.getAccessToken(), publicHost, UserTokenCookiePackager.CookieKind.IC);
+            final ResponseCookie damTokenCookie = cookiePackager.packageToken(token.getIdToken(), publicHost, IC.cookieName(TokenKind.IDENTITY));
+            final ResponseCookie icTokenCookie = cookiePackager.packageToken(token.getAccessToken(), publicHost, IC.cookieName(TokenKind.ACCESS));
             final ResponseEntity.BodyBuilder builder = ResponseEntity.status(TEMPORARY_REDIRECT)
                                                                      .location(redirectTo)
                                                                      .header(SET_COOKIE, damTokenCookie.toString())
                                                                      .header(SET_COOKIE, icTokenCookie.toString());
             if (token.getRefreshToken() != null) {
-                final ResponseCookie refreshTokenCookie = cookiePackager.packageToken(token.getRefreshToken(), publicHost, UserTokenCookiePackager.CookieKind.REFRESH);
+                final ResponseCookie refreshTokenCookie = cookiePackager.packageToken(token.getRefreshToken(), publicHost, IC.cookieName(TokenKind.REFRESH));
                 builder.header(SET_COOKIE, refreshTokenCookie.toString());
             }
 

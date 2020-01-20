@@ -55,7 +55,7 @@ steps:
         # Need libatomic1 for protoc.
         apt update && apt install -y git libatomic1
 
-        releaseVersion=$(cd ${REPO_NAME} && git checkout -q ${COMMIT_SHA} && git describe)
+        releaseVersion=$(cd ${REPO_NAME} && git checkout -q ${COMMIT_SHA} && git describe --abbrev=7)
         cp -r ${REPO_NAME}/.git .
 
         ./mvnw -B versions:set -DnewVersion=${releaseVersion}

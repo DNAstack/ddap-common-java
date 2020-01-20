@@ -74,11 +74,3 @@ logging:
       dnastack:
         ddap: DEBUG
 
----
-
-spring:
-  profiles: basic-auth
-  security:
-    user:
-      name: "dev"
-      password: "dev"

@@ -7,14 +7,18 @@ import reactor.core.publisher.Mono;
 
 public class ProtobufDeserializer {
 
-    public static <T extends Message> Mono<T> fromJson(String json, T defaultMessageInstance) {
+    public static <T extends Message> Mono<T> fromJsonToMono(String json, T defaultMessageInstance) {
         try {
-            Message.Builder builder = defaultMessageInstance.newBuilderForType();
-            JsonFormat.parser().merge(json, builder);
-            return Mono.just((T) builder.build());
+            return Mono.just(fromJson(json, defaultMessageInstance));
         } catch (InvalidProtocolBufferException e) {
             return Mono.error(e);
         }
+    }
+
+    public static <T extends Message> T fromJson(String json, T defaultMessageInstance) throws InvalidProtocolBufferException {
+        Message.Builder builder = defaultMessageInstance.newBuilderForType();
+        JsonFormat.parser().merge(json, builder);
+        return (T) builder.build();
     }
 
 }

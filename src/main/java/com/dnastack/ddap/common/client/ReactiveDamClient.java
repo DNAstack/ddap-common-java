@@ -2,7 +2,9 @@ package com.dnastack.ddap.common.client;
 
 import com.dnastack.ddap.common.config.DamProperties;
 import dam.v1.DamService;
+import dam.v1.DamService.ResourceTokens;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.util.UriTemplate;
 import reactor.core.publisher.Mono;
 
@@ -11,6 +13,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
+import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 
 @Slf4j
 public class ReactiveDamClient {
@@ -49,7 +52,7 @@ public class ReactiveDamClient {
             .uri(damBaseUrl.resolve("/dam"))
             .retrieve()
             .bodyToMono(String.class)
-            .flatMap(json -> ProtobufDeserializer.fromJson(json, DamService.GetInfoResponse.getDefaultInstance()));
+            .flatMap(json -> ProtobufDeserializer.fromJsonToMono(json, DamService.GetInfoResponse.getDefaultInstance()));
     }
 
     public Mono<Map<String, DamService.Resource>> getResources(String realm) {
@@ -66,7 +69,7 @@ public class ReactiveDamClient {
             .uri(damBaseUrl.resolve(template.expand(variables)))
             .retrieve()
             .bodyToMono(String.class)
-            .flatMap(json -> ProtobufDeserializer.fromJson(json, DamService.GetResourcesResponse.getDefaultInstance()))
+            .flatMap(json -> ProtobufDeserializer.fromJsonToMono(json, DamService.GetResourcesResponse.getDefaultInstance()))
             .map(DamService.GetResourcesResponse::getResourcesMap);
     }
 
@@ -85,7 +88,7 @@ public class ReactiveDamClient {
             .uri(damBaseUrl.resolve(template.expand(variables)))
             .retrieve()
             .bodyToMono(String.class)
-            .flatMap(json -> ProtobufDeserializer.fromJson(json, DamService.GetResourceResponse.getDefaultInstance()))
+            .flatMap(json -> ProtobufDeserializer.fromJsonToMono(json, DamService.GetResourceResponse.getDefaultInstance()))
             .map(DamService.GetResourceResponse::getResource);
     }
 
@@ -108,16 +111,16 @@ public class ReactiveDamClient {
             .header(AUTHORIZATION, "Bearer " + damToken)
             .retrieve()
             .bodyToMono(String.class)
-            .flatMap(json -> ProtobufDeserializer.fromJson(json, DamService.GetViewsResponse.getDefaultInstance()))
+            .flatMap(json -> ProtobufDeserializer.fromJsonToMono(json, DamService.GetViewsResponse.getDefaultInstance()))
             .map(DamService.GetViewsResponse::getViewsMap);
     }
 
     @Deprecated(forRemoval = true)
-    public Mono<DamService.ResourceTokens.ResourceToken> getAccessTokenForView(String realm,
-                                                                               String resourceId,
-                                                                               String viewId,
-                                                                               String damToken,
-                                                                               String refreshToken) {
+    public Mono<ResourceTokens.ResourceToken> getAccessTokenForView(String realm,
+                                                                    String resourceId,
+                                                                    String viewId,
+                                                                    String damToken,
+                                                                    String refreshToken) {
         final UriTemplate template = new UriTemplate(
             "/dam/v1alpha/{realm}/resources/{resourceId}/views/{viewId}/token" +
                 "?client_id={clientId}" +
@@ -135,7 +138,7 @@ public class ReactiveDamClient {
             .header(AUTHORIZATION, "Bearer " + damToken)
             .retrieve()
             .bodyToMono(String.class)
-            .flatMap(json -> ProtobufDeserializer.fromJson(json, DamService.ResourceTokens.ResourceToken.getDefaultInstance()));
+            .flatMap(json -> ProtobufDeserializer.fromJsonToMono(json, ResourceTokens.ResourceToken.getDefaultInstance()));
     }
 
     public Mono<Map<String, DamService.GetFlatViewsResponse.FlatView>> getFlattenedViews(String realm) {
@@ -152,12 +155,12 @@ public class ReactiveDamClient {
             .uri(damBaseUrl.resolve(template.expand(variables)))
             .retrieve()
             .bodyToMono(String.class)
-            .flatMap(json -> ProtobufDeserializer.fromJson(json, DamService.GetFlatViewsResponse.getDefaultInstance()))
+            .flatMap(json -> ProtobufDeserializer.fromJsonToMono(json, DamService.GetFlatViewsResponse.getDefaultInstance()))
             .map(DamService.GetFlatViewsResponse::getViewsMap);
     }
 
     // FIXME update proto and return checkout object
-    public Mono<Object> checkoutCart(String cartToken) {
+    public Mono<ResourceTokens> checkoutCart(String cartToken) {
         final UriTemplate template = new UriTemplate("/dam/checkout" +
             "?client_id={clientId}" +
             "&client_secret={clientSecret}");
@@ -166,11 +169,23 @@ public class ReactiveDamClient {
         variables.put("clientSecret", damClientSecret);
 
         return WebClientFactory.getWebClient()
-            .post()
-            .uri(damBaseUrl.resolve(template.expand(variables)))
-            .header(AUTHORIZATION, "Bearer " + cartToken)
-            .retrieve()
-            .bodyToMono(Object.class);
+                .post()
+                .uri(damBaseUrl.resolve(template.expand(variables)))
+                .header(AUTHORIZATION, "Bearer " + cartToken)
+                .retrieve()
+                .bodyToMono(String.class)
+                .flatMap(json -> ProtobufDeserializer.fromJsonToMono(json, ResourceTokens.getDefaultInstance()))
+                .onErrorMap(ex -> {
+                    try {
+                        throw ex;
+                    } catch (WebClientResponseException wcre) {
+                        return new CartCheckoutException(wcre.getResponseBodyAsString(), wcre.getRawStatusCode(), wcre);
+                    } catch (Exception e) {
+                        return new CartCheckoutException(e.getMessage(), INTERNAL_SERVER_ERROR.value(), e);
+                    } catch (Throwable t) {
+                        return t;
+                    }
+                });
     }
 
 }

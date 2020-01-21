@@ -48,7 +48,7 @@ public class ReactiveIcAccountClient {
                                .header(AUTHORIZATION, "Bearer " + icToken.getClearText())
                                .retrieve()
                                .bodyToMono(String.class)
-                               .flatMap(json -> ProtobufDeserializer.fromJson(json, IcService.AccountResponse.getDefaultInstance()));
+                               .flatMap(json -> ProtobufDeserializer.fromJsonToMono(json, IcService.AccountResponse.getDefaultInstance()));
     }
 
     public Mono<String> linkAccounts(String realm,

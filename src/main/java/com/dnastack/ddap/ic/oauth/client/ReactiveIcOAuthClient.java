@@ -1,18 +1,17 @@
 package com.dnastack.ddap.ic.oauth.client;
 
-import com.dnastack.ddap.common.oauth.ReactiveOAuthClient;
+import com.dnastack.ddap.common.oauth.BaseReactiveOAuthClient;
 import com.dnastack.ddap.ic.common.config.IdpProperties;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriTemplate;
-import reactor.core.publisher.Mono;
 
 import java.net.URI;
 
 @Slf4j
 @Component
-public class ReactiveIcOAuthClient extends ReactiveOAuthClient {
+public class ReactiveIcOAuthClient extends BaseReactiveOAuthClient {
 
     public ReactiveIcOAuthClient(IdpProperties idpProperties) {
         super(new AuthServerInfo(idpProperties.getClientId(), idpProperties.getClientSecret(), new IcEndpointResolver(idpProperties.getBaseUrl()), new IcLegacyEndpointResolver(idpProperties.getBaseUrl())));

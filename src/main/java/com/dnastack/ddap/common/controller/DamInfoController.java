@@ -1,8 +1,10 @@
 package com.dnastack.ddap.common.controller;
 
-import com.dnastack.ddap.common.util.http.UriUtil;
 import com.dnastack.ddap.common.client.ReactiveDamClient;
+import com.dnastack.ddap.common.config.DamProperties;
+import com.dnastack.ddap.common.util.http.UriUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,10 +23,13 @@ import java.util.stream.Collectors;
 public class DamInfoController {
 
     private Map<String, ReactiveDamClient> damClients;
+    private final Map<String, DamProperties> damPropertiesMap;
 
     @Autowired
-    public DamInfoController(Map<String, ReactiveDamClient> damClients) {
+    public DamInfoController(Map<String, ReactiveDamClient> damClients,
+                             @Qualifier("dams") Map<String, DamProperties> damPropertiesMap) {
         this.damClients = damClients;
+        this.damPropertiesMap = damPropertiesMap;
     }
 
     @GetMapping
@@ -33,7 +38,7 @@ public class DamInfoController {
                    .flatMap(e -> {
                        final String damId = e.getKey();
                        final ReactiveDamClient damClient = e.getValue();
-                       final String damUiUrl = damClient.damUiUrl.toString();
+                       final String damUiUrl = damPropertiesMap.get(damId).getUiUrl();
                        return damClient.getDamInfo()
                                        .map(damInfoResponse -> {
 

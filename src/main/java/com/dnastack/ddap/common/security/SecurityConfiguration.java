@@ -43,7 +43,7 @@ public class SecurityConfiguration {
     public SecurityWebFilterChain securityWebFilterChainAuth(ServerHttpSecurity http) {
         return http
             .authorizeExchange()
-            .pathMatchers("/actuator/info**", "/actuator/health**", "/")
+            .pathMatchers("/actuator/info**", "/actuator/health**")
             .permitAll()
             .and()
             .authorizeExchange()

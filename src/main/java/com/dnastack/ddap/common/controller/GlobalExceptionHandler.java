@@ -57,4 +57,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(401).body(new DdapErrorResponse(ex.getMessage(), ex.getStatus()));
     }
 
+    @ExceptionHandler(InapplicableAuthorizationFlowException.class)
+    public ResponseEntity<DdapErrorResponse> handle(InapplicableAuthorizationFlowException ex) {
+        return ResponseEntity.status(403).body(new DdapErrorResponse(ex.getMessage(), 403));
+    }
 }

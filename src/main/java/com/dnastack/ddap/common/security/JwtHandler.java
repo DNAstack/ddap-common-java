@@ -32,6 +32,8 @@ public class JwtHandler {
     }
 
     public enum TokenKind {
-        STATE, BEARER
+        STATE,
+        BEARER,
+        INTER_SERVICE
     }
 }

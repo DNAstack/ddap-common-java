@@ -1,6 +1,7 @@
 package com.dnastack.ddap.common.client;
 
 import dam.v1.DamService;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;
@@ -28,4 +29,6 @@ public interface ReactiveDamClient {
 
     // FIXME update proto and return checkout object
     Mono<DamService.ResourceTokens> checkoutCart(String cartToken);
+
+    Mono<DamService.ResourceTokens> checkoutCart(ServerHttpRequest request, String cartToken);
 }

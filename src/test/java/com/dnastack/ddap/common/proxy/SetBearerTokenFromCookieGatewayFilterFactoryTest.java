@@ -1,6 +1,5 @@
 package com.dnastack.ddap.common.proxy;
 
-import com.dnastack.ddap.common.TokenEncryptorFactory;
 import com.dnastack.ddap.common.proxy.SetBearerTokenFromCookieGatewayFilterFactory.Service;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicServices;
@@ -29,7 +28,7 @@ import static org.mockito.Mockito.verify;
 
 @SuppressWarnings("UnassignedFluxMonoInstance")
 @RunWith(SpringRunner.class)
-@SpringBootTest(classes = { TokenEncryptorFactory.class, UserTokenCookiePackager.class })
+@SpringBootTest(classes = { UserTokenCookiePackager.class })
 public class SetBearerTokenFromCookieGatewayFilterFactoryTest {
 
     @Autowired

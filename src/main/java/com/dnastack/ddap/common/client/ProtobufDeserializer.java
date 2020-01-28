@@ -17,7 +17,9 @@ public class ProtobufDeserializer {
 
     public static <T extends Message> T fromJson(String json, T defaultMessageInstance) throws InvalidProtocolBufferException {
         Message.Builder builder = defaultMessageInstance.newBuilderForType();
-        JsonFormat.parser().merge(json, builder);
+        JsonFormat.parser()
+                  .ignoringUnknownFields()
+                  .merge(json, builder);
         return (T) builder.build();
     }
 

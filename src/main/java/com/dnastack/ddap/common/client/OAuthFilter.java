@@ -2,10 +2,11 @@ package com.dnastack.ddap.common.client;
 
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.TokenKind;
-import com.dnastack.ddap.ic.oauth.client.ReactiveIcOAuthClient;
+import com.dnastack.ddap.ic.oauth.client.ReactiveIdpOAuthClient;
 import com.dnastack.ddap.ic.oauth.model.TokenResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ClientResponse;
@@ -19,13 +20,14 @@ import static org.springframework.http.HttpHeaders.SET_COOKIE;
 
 @Slf4j
 @Component
+@ConditionalOnExpression("${idp.enabled:false}")
 public class OAuthFilter {
 
-    private ReactiveIcOAuthClient oAuthClient;
+    private ReactiveIdpOAuthClient oAuthClient;
     private UserTokenCookiePackager cookiePackager;
 
     @Autowired
-    public OAuthFilter(ReactiveIcOAuthClient oAuthClient, UserTokenCookiePackager cookiePackager) {
+    public OAuthFilter(ReactiveIdpOAuthClient oAuthClient, UserTokenCookiePackager cookiePackager) {
         this.oAuthClient = oAuthClient;
         this.cookiePackager = cookiePackager;
     }

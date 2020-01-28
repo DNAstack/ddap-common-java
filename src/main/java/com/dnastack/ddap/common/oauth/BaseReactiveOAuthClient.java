@@ -6,6 +6,7 @@ import com.dnastack.ddap.common.security.UserTokenCookiePackager;
 import com.dnastack.ddap.ic.oauth.client.TokenExchangeException;
 import com.dnastack.ddap.ic.oauth.model.TokenResponse;
 import lombok.AllArgsConstructor;
+import lombok.Data;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,7 @@ import java.net.URI;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -43,6 +45,7 @@ public class BaseReactiveOAuthClient implements ReactiveOAuthClient {
         URI getAuthorizeEndpoint(String realm);
         URI getTokenEndpoint(String realm);
         URI getRevokeEndpoint(String realm);
+        Optional<URI> getUserInfoEndpoint(String realm);
     }
 
     @Override
@@ -52,6 +55,39 @@ public class BaseReactiveOAuthClient implements ReactiveOAuthClient {
                     log.info("Error exchanging authorization code at hydra endpoint. Falling back to legacy endpoint: {}", ex.getMessage());
                     return legacyExchangeAuthorizationCodeForTokens(realm, redirectUri, code);
                 });
+    }
+
+    @Override
+    public Mono<Object> getUserInfo(String realm, String accessToken) {
+        return getHydraUserInfo(realm, accessToken)
+                .onErrorResume(ex -> {
+                    log.info("Error getting user info at hydra endpoint. Falling back to legacy endpoint: {}", ex.getMessage());
+                    return getLegacyUserInfo(realm, accessToken);
+                });
+    }
+
+    private Mono<Object> getLegacyUserInfo(String realm, String accessToken) {
+        final Optional<URI> foundEndpoint = authServerInfo.getLegacyResolver().getUserInfoEndpoint(realm);
+        return foundEndpoint.map(uri -> WebClientFactory.getWebClient()
+                                                        .get()
+                                                        .uri(uri)
+                                                        .header(AUTHORIZATION, "Bearer " + accessToken)
+                                                        .accept(APPLICATION_JSON)
+                                                        .exchange()
+                                                        .flatMap(response -> response.bodyToMono(Object.class)))
+                            .orElseGet(() -> Mono.error(new UnsupportedOperationException("No legacy user info endpoint specified")));
+    }
+
+    private Mono<Object> getHydraUserInfo(String realm, String accessToken) {
+        final Optional<URI> foundEndpoint = authServerInfo.getResolver().getUserInfoEndpoint(realm);
+        return foundEndpoint.map(uri -> WebClientFactory.getWebClient()
+                                                        .get()
+                                                        .uri(uri)
+                                                        .header(AUTHORIZATION, "Bearer " + accessToken)
+                                                        .accept(APPLICATION_JSON)
+                                                        .exchange()
+                                                        .flatMap(response -> response.bodyToMono(Object.class)))
+                            .orElseGet(() -> Mono.error(new UnsupportedOperationException("No hydra user info endpoint specified")));
     }
 
     private Mono<TokenResponse> hydraAuthorizationCodeForTokens(String realm, URI redirectUri, String code) {

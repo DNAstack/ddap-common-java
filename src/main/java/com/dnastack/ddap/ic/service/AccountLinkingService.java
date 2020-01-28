@@ -4,14 +4,18 @@ import com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicServices;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieName;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.TokenKind;
 import com.dnastack.ddap.ic.account.client.ReactiveIcAccountClient;
+import com.dnastack.ddap.ic.common.config.IcProperties;
 import com.dnastack.ddap.ic.common.security.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;
 
 @Component
+@ConditionalOnExpression("${idp.enabled:false}")
 public class AccountLinkingService {
 
     private ReactiveIcAccountClient accountClient;

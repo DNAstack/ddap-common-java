@@ -4,9 +4,11 @@ import com.dnastack.ddap.common.client.AuthAwareWebClientFactory;
 import com.dnastack.ddap.common.client.OAuthFilter;
 import com.dnastack.ddap.common.client.ProtobufDeserializer;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieValue;
-import com.dnastack.ddap.ic.common.config.IdpProperties;
+import com.dnastack.ddap.ic.common.config.IcProperties;
 import ic.v1.IcService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriTemplate;
 import reactor.core.publisher.Mono;
@@ -18,15 +20,19 @@ import java.util.Optional;
 import static java.lang.String.format;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 
+/*
+ * TODO move this to ddap-ic-admin. Not needed by other deployments anymore.
+ */
 @Slf4j
 @Component
+@ConditionalOnExpression("${ic.enabled:false}")
 public class ReactiveIcAccountClient {
 
-    private IdpProperties idpProperties;
+    private IcProperties icProperties;
     private AuthAwareWebClientFactory webClientFactory;
 
-    public ReactiveIcAccountClient(IdpProperties idpProperties, AuthAwareWebClientFactory webClientFactory) {
-        this.idpProperties = idpProperties;
+    public ReactiveIcAccountClient(IcProperties icProperties, AuthAwareWebClientFactory webClientFactory) {
+        this.icProperties = icProperties;
         this.webClientFactory = webClientFactory;
     }
 
@@ -36,15 +42,15 @@ public class ReactiveIcAccountClient {
                 "&client_secret={clientSecret}");
         final Map<String, Object> variables = new HashMap<>();
         variables.put("realm", realm);
-        variables.put("clientId", idpProperties.getClientId());
-        variables.put("clientSecret", idpProperties.getClientSecret());
+        variables.put("clientId", icProperties.getClientId());
+        variables.put("clientSecret", icProperties.getClientSecret());
 
         final String refreshTokenClearText = Optional.ofNullable(refreshToken)
                                                      .map(CookieValue::getClearText)
                                                      .orElse(null);
-        return webClientFactory.getWebClient(realm, refreshTokenClearText, OAuthFilter.Audience.IC)
+        return webClientFactory.getWebClient(realm, null, OAuthFilter.Audience.IC)
                                .get()
-                               .uri(idpProperties.getBaseUrl().resolve(template.expand(variables)))
+                               .uri(icProperties.getBaseUrl().resolve(template.expand(variables)))
                                .header(AUTHORIZATION, "Bearer " + icToken.getClearText())
                                .retrieve()
                                .bodyToMono(String.class)
@@ -65,12 +71,12 @@ public class ReactiveIcAccountClient {
         variables.put("realm", realm);
         variables.put("accountId", baseAccountId);
         variables.put("linkToken", newAccountLinkToken);
-        variables.put("clientId", idpProperties.getClientId());
-        variables.put("clientSecret", idpProperties.getClientSecret());
+        variables.put("clientId", icProperties.getClientId());
+        variables.put("clientSecret", icProperties.getClientSecret());
 
         return webClientFactory.getWebClient(realm, refreshToken, OAuthFilter.Audience.IC)
                 .patch()
-                .uri(idpProperties.getBaseUrl().resolve(template.expand(variables)))
+                .uri(icProperties.getBaseUrl().resolve(template.expand(variables)))
                 .header(AUTHORIZATION, "Bearer " + baseAccountAccessToken)
                 .exchange()
                 .flatMap(response -> {
@@ -95,12 +101,12 @@ public class ReactiveIcAccountClient {
         variables.put("realm", realm);
         variables.put("accountId", accountId);
         variables.put("subjectName", subjectName);
-        variables.put("clientId", idpProperties.getClientId());
-        variables.put("clientSecret", idpProperties.getClientSecret());
+        variables.put("clientId", icProperties.getClientId());
+        variables.put("clientSecret", icProperties.getClientSecret());
 
         return webClientFactory.getWebClient(realm, refreshToken, OAuthFilter.Audience.IC)
                 .delete()
-                .uri(idpProperties.getBaseUrl().resolve(template.expand(variables)))
+                .uri(icProperties.getBaseUrl().resolve(template.expand(variables)))
                 .header(AUTHORIZATION, "Bearer " + accountAccessToken)
                 .exchange()
                 .flatMap(response -> {

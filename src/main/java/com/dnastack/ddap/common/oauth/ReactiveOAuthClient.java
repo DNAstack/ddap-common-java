@@ -28,4 +28,6 @@ public interface ReactiveOAuthClient {
     URI getAuthorizeUrl(String realm, String state, String scopes, URI redirectUri);
 
     URI getLegacyAuthorizeUrl(String realm, String state, String scopes, URI redirectUri);
+
+    Mono<Object> getUserInfo(String realm, String accessToken);
 }

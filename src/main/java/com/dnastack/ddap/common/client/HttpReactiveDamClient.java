@@ -4,6 +4,7 @@ import com.dnastack.ddap.common.config.DamProperties;
 import dam.v1.DamService;
 import dam.v1.DamService.ResourceTokens;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.util.UriTemplate;
 import reactor.core.publisher.Mono;
@@ -193,6 +194,11 @@ public class HttpReactiveDamClient implements ReactiveDamClient {
                         return t;
                     }
                 });
+    }
+
+    @Override
+    public Mono<ResourceTokens> checkoutCart(ServerHttpRequest request, String cartToken) {
+        throw new UnsupportedOperationException();
     }
 
 }

@@ -196,9 +196,4 @@ public class HttpReactiveDamClient implements ReactiveDamClient {
                 });
     }
 
-    @Override
-    public Mono<ResourceTokens> checkoutCart(ServerHttpRequest request, String cartToken) {
-        throw new UnsupportedOperationException();
-    }
-
 }

@@ -29,6 +29,4 @@ public interface ReactiveDamClient {
 
     // FIXME update proto and return checkout object
     Mono<DamService.ResourceTokens> checkoutCart(String cartToken);
-
-    Mono<DamService.ResourceTokens> checkoutCart(ServerHttpRequest request, String cartToken);
 }

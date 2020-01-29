@@ -15,7 +15,7 @@ import reactor.core.publisher.Mono;
 import java.util.Map;
 
 @Component
-@ConditionalOnExpression("${idp.enabled:false}")
+@ConditionalOnExpression("${ic.enabled:false}")
 public class AccountLinkingService {
 
     private ReactiveIcAccountClient accountClient;

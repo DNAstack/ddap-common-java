@@ -1,18 +1,14 @@
 package com.dnastack.ddap.ic.oauth.client;
 
-import com.dnastack.ddap.common.client.WebClientFactory;
 import com.dnastack.ddap.common.oauth.BaseReactiveOAuthClient;
 import com.dnastack.ddap.ic.common.config.IdpProperties;
 import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriTemplate;
-import reactor.core.publisher.Mono;
 
 import java.net.URI;
-import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
@@ -25,15 +21,13 @@ public class ReactiveIdpOAuthClient extends BaseReactiveOAuthClient {
     }
 
     public URI getAuthorizeUrl(String realm, String state, String scopes, URI redirectUri, String loginHint) {
-        return getAuthorizedUriBuilder(realm, state, scopes, redirectUri)
-                .queryParam("login_hint", loginHint)
+        return getAuthorizedUriBuilder(realm, state, scopes, redirectUri, loginHint)
                 .queryParam("realm", realm)
                 .build();
     }
 
     public URI getLegacyAuthorizeUrl(String realm, String state, String scopes, URI redirectUri, String loginHint) {
-        return getLegacyAuthorizedUriBuilder(realm, state, scopes, redirectUri)
-                .queryParam("login_hint", loginHint)
+        return getLegacyAuthorizedUriBuilder(realm, state, scopes, redirectUri, loginHint)
                 .build();
     }
 

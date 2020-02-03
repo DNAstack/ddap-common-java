@@ -2,16 +2,13 @@ package com.dnastack.ddap.common.oauth;
 
 import com.dnastack.ddap.common.client.WebClientFactory;
 import com.dnastack.ddap.common.security.InvalidTokenException;
-import com.dnastack.ddap.common.security.UserTokenCookiePackager;
 import com.dnastack.ddap.ic.oauth.client.TokenExchangeException;
 import com.dnastack.ddap.ic.oauth.model.TokenResponse;
 import lombok.AllArgsConstructor;
-import lombok.Data;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.util.UriBuilder;
@@ -250,15 +247,15 @@ public class BaseReactiveOAuthClient implements ReactiveOAuthClient {
                        .isPresent();
     }
 
-    protected UriBuilder getAuthorizedUriBuilder(String realm, String state, String scopes, URI redirectUri) {
-        return getAuthorizedUriBuilder(realm, state, scopes, redirectUri, authServerInfo.getResolver());
+    protected UriBuilder getAuthorizedUriBuilder(String realm, String state, String scopes, URI redirectUri, String loginHint) {
+        return getAuthorizedUriBuilder(realm, state, scopes, redirectUri, authServerInfo.getResolver(), loginHint);
     }
 
-    protected UriBuilder getLegacyAuthorizedUriBuilder(String realm, String state, String scopes, URI redirectUri) {
-        return getAuthorizedUriBuilder(realm, state, scopes, redirectUri, authServerInfo.getLegacyResolver());
+    protected UriBuilder getLegacyAuthorizedUriBuilder(String realm, String state, String scopes, URI redirectUri, String loginHint) {
+        return getAuthorizedUriBuilder(realm, state, scopes, redirectUri, authServerInfo.getLegacyResolver(), loginHint);
     }
 
-    private UriBuilder getAuthorizedUriBuilder(String realm, String state, String scopes, URI redirectUri, OAuthEndpointResolver resolver) {
+    private UriBuilder getAuthorizedUriBuilder(String realm, String state, String scopes, URI redirectUri, OAuthEndpointResolver resolver, String loginHint) {
         final UriComponentsBuilder builder = UriComponentsBuilder.fromUri(resolver.getAuthorizeEndpoint(realm))
                                                                  .queryParam("response_type", "code")
                                                                  .queryParam("client_id", authServerInfo.getClientId())
@@ -267,18 +264,22 @@ public class BaseReactiveOAuthClient implements ReactiveOAuthClient {
         if (scopes != null) {
             builder.queryParam("scope", scopes);
         }
+        if (loginHint != null) {
+            builder.queryParam("login_hint", loginHint);
+        }
 
         return builder;
     }
 
     @Override
-    public URI getAuthorizeUrl(String realm, String state, String scopes, URI redirectUri) {
-        return getAuthorizedUriBuilder(realm, state, scopes, redirectUri).build();
+    public URI getAuthorizeUrl(String realm, String state, String scopes, URI redirectUri, String loginHint) {
+        return getAuthorizedUriBuilder(realm, state, scopes, redirectUri, loginHint)
+            .build();
     }
 
     @Override
-    public URI getLegacyAuthorizeUrl(String realm, String state, String scopes, URI redirectUri) {
-        return getLegacyAuthorizedUriBuilder(realm, state, scopes, redirectUri)
+    public URI getLegacyAuthorizeUrl(String realm, String state, String scopes, URI redirectUri, String loginHint) {
+        return getLegacyAuthorizedUriBuilder(realm, state, scopes, redirectUri, loginHint)
                 .build();
     }
 }

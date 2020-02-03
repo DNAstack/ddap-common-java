@@ -25,9 +25,9 @@ public interface ReactiveOAuthClient {
     // TODO remove after Hydra deployed in all environments
     Mono<ClientResponse> legacyRevokeRefreshToken(String realm, String refreshToken);
 
-    URI getAuthorizeUrl(String realm, String state, String scopes, URI redirectUri);
+    URI getAuthorizeUrl(String realm, String state, String scopes, URI redirectUri, String loginHint);
 
-    URI getLegacyAuthorizeUrl(String realm, String state, String scopes, URI redirectUri);
+    URI getLegacyAuthorizeUrl(String realm, String state, String scopes, URI redirectUri, String loginHint);
 
     Mono<Object> getUserInfo(String realm, String accessToken);
 }

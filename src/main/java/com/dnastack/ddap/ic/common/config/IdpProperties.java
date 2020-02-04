@@ -10,13 +10,6 @@ import java.net.URI;
 public class IdpProperties {
 
     /**
-     * This will be removed once hydra migration is complete.
-     *
-     * @deprecated Define specific oauth endpoints instead.
-     */
-    private URI baseUrl;
-
-    /**
      * Authorize url. May contain {@code {realm}} placeholder.
      */
     private String authorizeUrl;

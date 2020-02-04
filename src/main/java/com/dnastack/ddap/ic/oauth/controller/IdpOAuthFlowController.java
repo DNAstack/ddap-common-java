@@ -76,27 +76,17 @@ public class IdpOAuthFlowController {
     }
 
     @GetMapping("/api/v1alpha/realm/{realm}/identity/login")
-    public Mono<? extends ResponseEntity<?>> apiLogin(ServerHttpRequest request,
-                                                      @PathVariable String realm,
-                                                      @RequestParam(required = false) URI redirectUri,
-                                                      @RequestParam(defaultValue = DEFAULT_SCOPES) String scope,
-                                                      @RequestParam(required = false) String loginHint) {
+    public ResponseEntity<?> apiLogin(ServerHttpRequest request,
+                                      @PathVariable String realm,
+                                      @RequestParam(required = false) URI redirectUri,
+                                      @RequestParam(defaultValue = DEFAULT_SCOPES) String scope,
+                                      @RequestParam(required = false) String loginHint) {
 
         final String state = stateHandler.generateLoginState(redirectUri, realm);
 
         final URI postLoginTokenEndpoint = UriUtil.selfLinkToApi(request, "identity/loggedIn");
         final URI loginUri = oAuthClient.getAuthorizeUrl(realm, state, scope, postLoginTokenEndpoint, loginHint);
-        return oAuthClient.testAuthorizeEndpoint(loginUri)
-                   .map(status -> {
-                       // For now try the legacy login URI on client error
-                       if (status.is4xxClientError()) {
-                           log.info("Authorize endpoint returned [{}] status: Falling back to legacy authorize endpoint", status);
-                           final URI legacyAuthorizeUrl = oAuthClient.getLegacyAuthorizeUrl(realm, state, scope, postLoginTokenEndpoint, loginHint);
-                           return doAuthorizeRedirect(request, realm, state, legacyAuthorizeUrl);
-                       } else {
-                           return doAuthorizeRedirect(request, realm, state, loginUri);
-                       }
-                   });
+        return doAuthorizeRedirect(request, realm, state, loginUri);
     }
 
     private ResponseEntity<?> doAuthorizeRedirect(ServerHttpRequest request, @PathVariable String realm, String state, URI loginUri) {

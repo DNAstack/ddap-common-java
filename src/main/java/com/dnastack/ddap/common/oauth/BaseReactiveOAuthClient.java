@@ -7,19 +7,15 @@ import com.dnastack.ddap.ic.oauth.model.TokenResponse;
 import lombok.AllArgsConstructor;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.util.UriBuilder;
 import org.springframework.web.util.UriComponentsBuilder;
-import org.springframework.web.util.UriTemplate;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
 import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
@@ -35,7 +31,6 @@ public class BaseReactiveOAuthClient implements ReactiveOAuthClient {
         private String clientId;
         private String clientSecret;
         private OAuthEndpointResolver resolver;
-        private OAuthEndpointResolver legacyResolver;
     }
 
     public interface OAuthEndpointResolver {
@@ -47,47 +42,6 @@ public class BaseReactiveOAuthClient implements ReactiveOAuthClient {
 
     @Override
     public Mono<TokenResponse> exchangeAuthorizationCodeForTokens(String realm, URI redirectUri, String code) {
-        return hydraAuthorizationCodeForTokens(realm, redirectUri, code)
-                .onErrorResume(ex -> {
-                    log.info("Error exchanging authorization code at hydra endpoint. Falling back to legacy endpoint: {}", ex.getMessage());
-                    return legacyExchangeAuthorizationCodeForTokens(realm, redirectUri, code);
-                });
-    }
-
-    @Override
-    public Mono<Object> getUserInfo(String realm, String accessToken) {
-        return getHydraUserInfo(realm, accessToken)
-                .onErrorResume(ex -> {
-                    log.info("Error getting user info at hydra endpoint. Falling back to legacy endpoint: {}", ex.getMessage());
-                    return getLegacyUserInfo(realm, accessToken);
-                });
-    }
-
-    private Mono<Object> getLegacyUserInfo(String realm, String accessToken) {
-        final Optional<URI> foundEndpoint = authServerInfo.getLegacyResolver().getUserInfoEndpoint(realm);
-        return foundEndpoint.map(uri -> WebClientFactory.getWebClient()
-                                                        .get()
-                                                        .uri(uri)
-                                                        .header(AUTHORIZATION, "Bearer " + accessToken)
-                                                        .accept(APPLICATION_JSON)
-                                                        .exchange()
-                                                        .flatMap(response -> response.bodyToMono(Object.class)))
-                            .orElseGet(() -> Mono.error(new UnsupportedOperationException("No legacy user info endpoint specified")));
-    }
-
-    private Mono<Object> getHydraUserInfo(String realm, String accessToken) {
-        final Optional<URI> foundEndpoint = authServerInfo.getResolver().getUserInfoEndpoint(realm);
-        return foundEndpoint.map(uri -> WebClientFactory.getWebClient()
-                                                        .get()
-                                                        .uri(uri)
-                                                        .header(AUTHORIZATION, "Bearer " + accessToken)
-                                                        .accept(APPLICATION_JSON)
-                                                        .exchange()
-                                                        .flatMap(response -> response.bodyToMono(Object.class)))
-                            .orElseGet(() -> Mono.error(new UnsupportedOperationException("No hydra user info endpoint specified")));
-    }
-
-    private Mono<TokenResponse> hydraAuthorizationCodeForTokens(String realm, URI redirectUri, String code) {
         final URI uri = authServerInfo.getResolver().getTokenEndpoint(realm);
 
         return WebClientFactory.getWebClient()
@@ -103,28 +57,17 @@ public class BaseReactiveOAuthClient implements ReactiveOAuthClient {
                                .onErrorMap(ex ->  new InvalidTokenException(ex.getMessage()));
     }
 
-    // TODO remove after Hydra deployed in all environments
     @Override
-    public Mono<TokenResponse> legacyExchangeAuthorizationCodeForTokens(String realm, URI redirectUri, String code) {
-        final UriTemplate template = new UriTemplate("{tokenEndpoint}" +
-                                                             "?grant_type=authorization_code" +
-                                                             "&code={code}" +
-                                                             "&redirect_uri={redirectUri}" +
-                                                             "&clientId={clientId}" +
-                                                             "&clientSecret={clientSecret}");
-        final Map<String, Object> variables = new HashMap<>();
-        variables.put("tokenEndpoint", authServerInfo.getLegacyResolver().getTokenEndpoint(realm));
-        variables.put("code", code);
-        variables.put("redirectUri", redirectUri);
-        variables.put("clientId", authServerInfo.getClientId());
-        variables.put("clientSecret", authServerInfo.getClientSecret());
-
-        return WebClientFactory.getWebClient()
-                               .post()
-                               .uri(template.expand(variables))
-                               .exchange()
-                               .flatMap(this::extractIdpTokens)
-                               .onErrorMap(ex ->  new InvalidTokenException(ex.getMessage()));
+    public Mono<Object> getUserInfo(String realm, String accessToken) {
+        final Optional<URI> foundEndpoint = authServerInfo.getResolver().getUserInfoEndpoint(realm);
+        return foundEndpoint.map(uri -> WebClientFactory.getWebClient()
+                                                        .get()
+                                                        .uri(uri)
+                                                        .header(AUTHORIZATION, "Bearer " + accessToken)
+                                                        .accept(APPLICATION_JSON)
+                                                        .exchange()
+                                                        .flatMap(response -> response.bodyToMono(Object.class)))
+                            .orElseGet(() -> Mono.error(new UnsupportedOperationException("No user info endpoint specified")));
     }
 
     private String encodeBasicAuth(String user, String password) {
@@ -133,24 +76,7 @@ public class BaseReactiveOAuthClient implements ReactiveOAuthClient {
     }
 
     @Override
-    public Mono<HttpStatus> testAuthorizeEndpoint(URI uri) {
-        return WebClientFactory.getWebClient()
-                               .get()
-                               .uri(uri)
-                               .exchange()
-                               .map(ClientResponse::statusCode);
-    }
-
-    @Override
     public Mono<TokenResponse> refreshAccessToken(String realm, String refreshToken, String scope) {
-        return hydraRefreshAccessToken(realm, refreshToken, scope)
-                .onErrorResume(ex -> {
-                    log.info("Error refreshing token via hydra endpoint. Falling back to legacy endpoint: {}", ex.getMessage());
-                    return legacyRefreshAccessToken(realm, refreshToken);
-                });
-    }
-
-    private Mono<TokenResponse> hydraRefreshAccessToken(String realm, String refreshToken, String scope) {
         final URI uri = authServerInfo.getResolver().getTokenEndpoint(realm);
 
         final BodyInserters.FormInserter<String> params = BodyInserters.fromFormData("refresh_token", refreshToken)
@@ -169,38 +95,8 @@ public class BaseReactiveOAuthClient implements ReactiveOAuthClient {
                                .onErrorMap(ex ->  new InvalidTokenException(ex.getMessage()));
     }
 
-    // TODO remove after Hydra deployed in all environments
-    @Override
-    public Mono<TokenResponse> legacyRefreshAccessToken(String realm, String refreshToken) {
-        final UriTemplate template = new UriTemplate("{tokenEndpoint}" +
-                                                             "?grant_type=refresh_token" +
-                                                             "&refresh_token={refreshToken}" +
-                                                             "&clientId={clientId}" +
-                                                             "&clientSecret={clientSecret}");
-        final Map<String, Object> variables = new HashMap<>();
-        variables.put("tokenEndpoint", authServerInfo.getLegacyResolver().getTokenEndpoint(realm));
-        variables.put("refreshToken", refreshToken);
-        variables.put("clientId", authServerInfo.getClientId());
-        variables.put("clientSecret", authServerInfo.getClientSecret());
-
-        return WebClientFactory.getWebClient()
-                               .post()
-                               .uri(template.expand(variables))
-                               .exchange()
-                               .flatMap(this::extractIdpTokens)
-                               .onErrorMap(ex ->  new InvalidTokenException(ex.getMessage()));
-    }
-
     @Override
     public Mono<ClientResponse> revokeRefreshToken(String realm, String refreshToken) {
-        return hydraRevokeAccessToken(realm, refreshToken)
-                .onErrorResume(ex -> {
-                    log.info("Error revoking token at hydra endpoint. Falling back to legacy endpoint: {}", ex.getMessage());
-                    return legacyRevokeRefreshToken(realm, refreshToken);
-                });
-    }
-
-    private Mono<ClientResponse> hydraRevokeAccessToken(String realm, String refreshToken) {
         final URI uri = authServerInfo.getResolver().getRevokeEndpoint(realm);
 
         return WebClientFactory.getWebClient()
@@ -208,26 +104,6 @@ public class BaseReactiveOAuthClient implements ReactiveOAuthClient {
                                .uri(uri)
                                .header("Authorization", "Basic " + encodeBasicAuth(authServerInfo.getClientId(), authServerInfo.getClientSecret()))
                                .body(BodyInserters.fromFormData("refresh_token", refreshToken))
-                               .exchange();
-    }
-
-    // TODO remove after Hydra deployed in all environments
-    @Override
-    public Mono<ClientResponse> legacyRevokeRefreshToken(String realm, String refreshToken) {
-        final UriTemplate template = new UriTemplate("{revokeEndpoint}" +
-                                                             "?token={refreshToken}" +
-                                                             "&clientId={clientId}" +
-                                                             "&clientSecret={clientSecret}");
-        final Map<String, Object> variables = new HashMap<>();
-        variables.put("revokeEndpoint", authServerInfo.getResolver().getRevokeEndpoint(realm));
-        variables.put("realm", realm);
-        variables.put("refreshToken", refreshToken);
-        variables.put("clientId", authServerInfo.getClientId());
-        variables.put("clientSecret", authServerInfo.getClientSecret());
-
-        return WebClientFactory.getWebClient()
-                               .post()
-                               .uri(template.expand(variables))
                                .exchange();
     }
 
@@ -251,10 +127,6 @@ public class BaseReactiveOAuthClient implements ReactiveOAuthClient {
         return getAuthorizedUriBuilder(realm, state, scopes, redirectUri, authServerInfo.getResolver(), loginHint);
     }
 
-    protected UriBuilder getLegacyAuthorizedUriBuilder(String realm, String state, String scopes, URI redirectUri, String loginHint) {
-        return getAuthorizedUriBuilder(realm, state, scopes, redirectUri, authServerInfo.getLegacyResolver(), loginHint);
-    }
-
     private UriBuilder getAuthorizedUriBuilder(String realm, String state, String scopes, URI redirectUri, OAuthEndpointResolver resolver, String loginHint) {
         final UriComponentsBuilder builder = UriComponentsBuilder.fromUri(resolver.getAuthorizeEndpoint(realm))
                                                                  .queryParam("response_type", "code")
@@ -275,11 +147,5 @@ public class BaseReactiveOAuthClient implements ReactiveOAuthClient {
     public URI getAuthorizeUrl(String realm, String state, String scopes, URI redirectUri, String loginHint) {
         return getAuthorizedUriBuilder(realm, state, scopes, redirectUri, loginHint)
             .build();
-    }
-
-    @Override
-    public URI getLegacyAuthorizeUrl(String realm, String state, String scopes, URI redirectUri, String loginHint) {
-        return getLegacyAuthorizedUriBuilder(realm, state, scopes, redirectUri, loginHint)
-                .build();
     }
 }

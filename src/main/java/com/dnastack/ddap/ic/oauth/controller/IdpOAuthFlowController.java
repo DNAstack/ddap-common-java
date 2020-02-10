@@ -22,6 +22,7 @@ import java.net.URI;
 import java.util.Optional;
 
 import static com.dnastack.ddap.common.OAuthConstants.DEFAULT_SCOPES;
+import static com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicServices.DAM;
 import static com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicServices.IC;
 import static org.springframework.http.HttpHeaders.SET_COOKIE;
 import static org.springframework.http.HttpStatus.TEMPORARY_REDIRECT;
@@ -63,11 +64,15 @@ public class IdpOAuthFlowController {
 
         URI cookieDomainPath = UriUtil.selfLinkToApi(request, realm, "identity/token");
         ResponseEntity<Void> response = ResponseEntity.noContent()
-                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), IC.cookieName(TokenKind.ACCESS)).toString())
-                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), IC.cookieName(TokenKind.IDENTITY)).toString())
-                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), IC.cookieName(TokenKind.OAUTH_STATE)).toString())
-                                                      .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), IC.cookieName(TokenKind.REFRESH)).toString())
-                                                      .build();
+            .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), IC.cookieName(TokenKind.ACCESS)).toString())
+            .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), IC.cookieName(TokenKind.IDENTITY)).toString())
+            .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), IC.cookieName(TokenKind.OAUTH_STATE)).toString())
+            .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), IC.cookieName(TokenKind.REFRESH)).toString())
+            .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), DAM.cookieName(TokenKind.ACCESS)).toString())
+            .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), DAM.cookieName(TokenKind.IDENTITY)).toString())
+            .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), DAM.cookieName(TokenKind.OAUTH_STATE)).toString())
+            .header(SET_COOKIE, cookiePackager.clearToken(cookieDomainPath.getHost(), DAM.cookieName(TokenKind.REFRESH)).toString())
+            .build();
 
         return foundRefreshToken.map(refreshToken -> oAuthClient.revokeRefreshToken(realm, refreshToken.getClearText())
                                                                 .thenReturn(response)

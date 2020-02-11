@@ -29,6 +29,7 @@ public class FrontendAssetsRedirector {
                         .and(path("/api/**").negate())
                         .and(path("/dam/**").negate())
                         .and(path("/identity/**").negate())
+                        .and(path("/proxy/**").negate())
                         .and(pathExtension(StringUtils::isEmpty)),
                 request -> ok()
                         .contentType(TEXT_HTML)

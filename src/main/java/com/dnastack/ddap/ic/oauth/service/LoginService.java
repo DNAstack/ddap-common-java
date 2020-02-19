@@ -16,6 +16,7 @@ import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
 
+import static com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieName;
 import static org.springframework.http.HttpHeaders.SET_COOKIE;
 import static org.springframework.http.HttpStatus.TEMPORARY_REDIRECT;
 
@@ -87,9 +88,9 @@ public abstract class LoginService {
         return builder.build();
     }
 
-    protected abstract UserTokenCookiePackager.CookieName refreshTokenName();
+    protected abstract CookieName refreshTokenName();
 
-    protected abstract UserTokenCookiePackager.CookieName accessTokenName();
+    protected abstract CookieName accessTokenName();
 
-    protected abstract UserTokenCookiePackager.CookieName idTokenName();
+    protected abstract CookieName idTokenName();
 }

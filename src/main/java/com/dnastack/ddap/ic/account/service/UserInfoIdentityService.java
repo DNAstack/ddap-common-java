@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.PathVariable;
 import reactor.core.publisher.Mono;
 
+import java.util.Collections;
 import java.util.Optional;
 
 import static com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicServices.DAM;
@@ -34,10 +35,10 @@ public class UserInfoIdentityService implements IdentityService {
         return userInfoMono.map(userInfo -> {
             Optional<JwtUtil.JwtSubject> subject = JwtUtil.dangerousStopgapExtractSubject(token.getClearText());
             return IdentityModel.builder()
-                                .account(userInfo)
-                                .scopes(subject.get().getScope())
-                                .sandbox(profileService.isSandboxProfileActive())
-                                .build();
+                .account(userInfo)
+                .scopes(subject.map(JwtUtil.JwtSubject::getScp).orElse(Collections.emptyList()))
+                .sandbox(profileService.isSandboxProfileActive())
+                .build();
         });
     }
 }

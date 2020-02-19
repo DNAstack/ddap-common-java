@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.PathVariable;
 import reactor.core.publisher.Mono;
 
+import java.util.Collections;
 import java.util.Optional;
 
 @Component
@@ -34,10 +35,10 @@ public class IcIdentityService implements IdentityService {
         return accountMono.map(account -> {
             Optional<JwtUtil.JwtSubject> subject = JwtUtil.dangerousStopgapExtractSubject(icToken.getClearText());
             return IdentityModel.builder()
-                                .account(account.getAccount())
-                                .scopes(subject.get().getScope())
-                                .sandbox(profileService.isSandboxProfileActive())
-                                .build();
+                .account(account.getAccount())
+                .scopes(subject.map(JwtUtil.JwtSubject::getScp).orElse(Collections.emptyList()))
+                .sandbox(profileService.isSandboxProfileActive())
+                .build();
         });
     }
 }

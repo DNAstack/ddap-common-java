@@ -134,22 +134,22 @@ public class IdpOAuthFlowController {
         final String realm = validatedState.getRealm();
         final TokenExchangePurpose tokenExchangePurpose = validatedState.getTokenExchangePurpose();
         return oAuthClient.exchangeAuthorizationCodeForTokens(realm, rootLoginRedirectUrl(request), code)
-                          .flatMap(tokenResponse -> {
-                              Optional<URI> customDestination = validatedState.getDestinationAfterLogin()
-                                                                              .map(possiblyRelativeUrl -> UriUtil.selfLinkToUi(request, realm, "").resolve(possiblyRelativeUrl));
-                              final URI ddapDataBrowserUrl = customDestination.orElseGet(() -> UriUtil.selfLinkToUi(request, realm, ""));
+            .flatMap(tokenResponse -> {
+                Optional<URI> customDestination = validatedState.getDestinationAfterLogin()
+                    .map(possiblyRelativeUrl -> UriUtil.selfLinkToUi(request, realm, "").resolve(possiblyRelativeUrl));
+                final URI ddapDataBrowserUrl = customDestination.orElseGet(() -> UriUtil.selfLinkToUi(request, realm, ""));
 
-                              if (tokenExchangePurpose == TokenExchangePurpose.LOGIN) {
-                                  return loginService.finishLogin(request, realm, tokenExchangePurpose, tokenResponse, ddapDataBrowserUrl);
-                              } else if (tokenExchangePurpose == TokenExchangePurpose.LINK) {
-                                  final UserTokenCookiePackager.CookieValue accessToken = cookiePackager.extractRequiredToken(request, IC.cookieName(UserTokenCookiePackager.TokenKind.ACCESS));
-                                  return reactiveIcAccountClient.linkAccounts(realm, tokenResponse.getAccessToken(), accessToken.getClearText())
-                                      .map(success -> ResponseEntity.status(307).location(ddapDataBrowserUrl).build());
-                              } else {
-                                  return Mono.error(new TokenExchangeException("Unrecognized purpose in token exchange"));
-                              }
-                          })
-                          .doOnError(exception -> log.info("Failed to negotiate token", exception));
+                if (tokenExchangePurpose == TokenExchangePurpose.LOGIN) {
+                    return loginService.finishLogin(request, realm, tokenExchangePurpose, tokenResponse, ddapDataBrowserUrl);
+                } else if (tokenExchangePurpose == TokenExchangePurpose.LINK) {
+                    final UserTokenCookiePackager.CookieValue accessToken = cookiePackager.extractRequiredToken(request, IC.cookieName(UserTokenCookiePackager.TokenKind.ACCESS));
+                    return reactiveIcAccountClient.linkAccounts(realm, tokenResponse.getAccessToken(), accessToken.getClearText())
+                        .map(success -> ResponseEntity.status(307).location(ddapDataBrowserUrl).build());
+                } else {
+                    return Mono.error(new TokenExchangeException("Unrecognized purpose in token exchange"));
+                }
+            })
+            .doOnError(exception -> log.info("Failed to negotiate token", exception));
     }
 
 }

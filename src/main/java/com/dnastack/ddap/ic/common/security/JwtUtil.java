@@ -1,9 +1,8 @@
 package com.dnastack.ddap.ic.common.security;
 
-import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.ToString;
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -11,8 +10,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
-
-import static java.util.Arrays.asList;
 
 @Slf4j
 public class JwtUtil {
@@ -50,27 +47,10 @@ public class JwtUtil {
         return Optional.of(decodedBody);
     }
 
-    @ToString
+    @Data
     public static class JwtSubject {
         String sub;
         List<String> scp;
-
-        public String getSub() {
-            return sub;
-        }
-
-        public void setSub(String sub) {
-            this.sub = sub;
-        }
-
-        public List<String> getScope() {
-            return scp;
-        }
-
-        @JsonSetter
-        public void setScope(String scope) {
-            this.scp = asList(scope.split(" "));
-        }
     }
 
 }

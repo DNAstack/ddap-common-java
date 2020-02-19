@@ -6,6 +6,7 @@ import com.dnastack.ddap.ic.oauth.client.ReactiveIdpOAuthClient;
 import com.dnastack.ddap.ic.oauth.client.TokenExchangeException;
 import com.dnastack.ddap.ic.oauth.model.TokenResponse;
 import com.dnastack.ddap.ic.service.AccountLinkingService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -16,6 +17,7 @@ import java.net.URI;
 
 import static com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicServices.IC;
 
+@Slf4j
 @Component
 @ConditionalOnExpression("${ic.enabled:false}")
 public class IcLoginService extends LoginService {

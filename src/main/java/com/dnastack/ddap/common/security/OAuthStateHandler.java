@@ -40,10 +40,10 @@ public class OAuthStateHandler {
                                          Keys.hmacShaKeyFor(Base64.getMimeDecoder().decode(tokenSigningKeyBase64)));
     }
 
-    public String generateAccountLinkingState(String targetAccountId, String realm) {
+    public String generateAccountLinkingState(String targetAccountAccessToken, String realm) {
         return generateState(TokenExchangePurpose.LINK,
                              realm,
-                             singletonMap("targetAccount", targetAccountId));
+                             singletonMap("targetAccount", targetAccountAccessToken));
     }
 
     public String generateLoginState(URI destinationAfterLogin, String realm) {

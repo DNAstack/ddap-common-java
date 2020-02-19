@@ -3,7 +3,7 @@ package com.dnastack.ddap.ic.common.security;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.Data;
+import lombok.ToString;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
@@ -50,14 +50,26 @@ public class JwtUtil {
         return Optional.of(decodedBody);
     }
 
-    @Data
+    @ToString
     public static class JwtSubject {
         String sub;
-        List<String> scope;
+        List<String> scp;
+
+        public String getSub() {
+            return sub;
+        }
+
+        public void setSub(String sub) {
+            this.sub = sub;
+        }
+
+        public List<String> getScope() {
+            return scp;
+        }
 
         @JsonSetter
         public void setScope(String scope) {
-            this.scope = asList(scope.split(" "));
+            this.scp = asList(scope.split(" "));
         }
     }
 

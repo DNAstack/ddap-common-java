@@ -6,6 +6,7 @@ import com.dnastack.ddap.common.util.http.UriUtil;
 import com.dnastack.ddap.ic.oauth.client.ReactiveIdpOAuthClient;
 import com.dnastack.ddap.ic.oauth.model.TokenResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -15,10 +16,10 @@ import java.net.URI;
 import java.util.HashSet;
 import java.util.Set;
 
-import static com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicServices.IC;
 import static org.springframework.http.HttpHeaders.SET_COOKIE;
 import static org.springframework.http.HttpStatus.TEMPORARY_REDIRECT;
 
+@Slf4j
 @RequiredArgsConstructor
 public abstract class LoginService {
     protected final UserTokenCookiePackager cookiePackager;
@@ -30,6 +31,7 @@ public abstract class LoginService {
         UserTokenCookiePackager.CookieValue refreshToken = cookiePackager.extractRequiredToken(request, refreshTokenName());
 
         URI cookieDomainPath = UriUtil.selfLinkToApi(request, realm, "identity/token");
+        // FIXME: use issued scopes (from access token) for refresh token!
         Mono<TokenResponse> refreshAccessTokenMono = oAuthClient.refreshAccessToken(realm, refreshToken.getClearText(), null);
 
         return refreshAccessTokenMono.map((tokenResponse) -> {
@@ -68,21 +70,21 @@ public abstract class LoginService {
 
         if (!missingItems.isEmpty()) {
             throw new IllegalArgumentException("Incomplete token response: missing " + missingItems);
-        } else {
-            final String publicHost = redirectTo.getHost();
-            final ResponseCookie identityToken = cookiePackager.packageToken(token.getIdToken(), publicHost, idTokenName());
-            final ResponseCookie accessToken = cookiePackager.packageToken(token.getAccessToken(), publicHost, accessTokenName());
-            final ResponseEntity.BodyBuilder builder = ResponseEntity.status(TEMPORARY_REDIRECT)
-                                                                     .location(redirectTo)
-                                                                     .header(SET_COOKIE, identityToken.toString())
-                                                                     .header(SET_COOKIE, accessToken.toString());
-            if (token.getRefreshToken() != null) {
-                final ResponseCookie refreshTokenCookie = cookiePackager.packageToken(token.getRefreshToken(), publicHost, refreshTokenName());
-                builder.header(SET_COOKIE, refreshTokenCookie.toString());
-            }
-
-            return builder.build();
         }
+
+        final String publicHost = redirectTo.getHost();
+        final ResponseCookie identityToken = cookiePackager.packageToken(token.getIdToken(), publicHost, idTokenName());
+        final ResponseCookie accessToken = cookiePackager.packageToken(token.getAccessToken(), publicHost, accessTokenName());
+        final ResponseEntity.BodyBuilder builder = ResponseEntity.status(TEMPORARY_REDIRECT)
+            .location(redirectTo)
+            .header(SET_COOKIE, identityToken.toString())
+            .header(SET_COOKIE, accessToken.toString());
+        if (token.getRefreshToken() != null) {
+            final ResponseCookie refreshTokenCookie = cookiePackager.packageToken(token.getRefreshToken(), publicHost, refreshTokenName());
+            builder.header(SET_COOKIE, refreshTokenCookie.toString());
+        }
+
+        return builder.build();
     }
 
     protected abstract UserTokenCookiePackager.CookieName refreshTokenName();

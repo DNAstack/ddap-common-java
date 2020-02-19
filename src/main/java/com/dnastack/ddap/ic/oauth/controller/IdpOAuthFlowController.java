@@ -5,7 +5,9 @@ import com.dnastack.ddap.common.security.TokenExchangePurpose;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.TokenKind;
 import com.dnastack.ddap.common.util.http.UriUtil;
+import com.dnastack.ddap.ic.account.client.ReactiveIcAccountClient;
 import com.dnastack.ddap.ic.oauth.client.ReactiveIdpOAuthClient;
+import com.dnastack.ddap.ic.oauth.client.TokenExchangeException;
 import com.dnastack.ddap.ic.oauth.service.LoginService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,16 +38,19 @@ public class IdpOAuthFlowController {
     private final OAuthStateHandler stateHandler;
     private final LoginService loginService;
     private final UserTokenCookiePackager cookiePackager;
+    private final ReactiveIcAccountClient reactiveIcAccountClient;
 
     @Autowired
     public IdpOAuthFlowController(ReactiveIdpOAuthClient oAuthClient,
                                   UserTokenCookiePackager cookiePackager,
                                   OAuthStateHandler stateHandler,
-                                  LoginService loginService) {
+                                  LoginService loginService,
+                                  ReactiveIcAccountClient reactiveIcAccountClient) {
         this.oAuthClient = oAuthClient;
         this.cookiePackager = cookiePackager;
         this.stateHandler = stateHandler;
         this.loginService = loginService;
+        this.reactiveIcAccountClient = reactiveIcAccountClient;
     }
 
     /**
@@ -86,9 +91,7 @@ public class IdpOAuthFlowController {
                                       @RequestParam(required = false) URI redirectUri,
                                       @RequestParam(defaultValue = DEFAULT_SCOPES) String scope,
                                       @RequestParam(required = false) String loginHint) {
-
         final String state = stateHandler.generateLoginState(redirectUri, realm);
-
         final URI postLoginTokenEndpoint = UriUtil.selfLinkToApi(request, "identity/loggedIn");
         final URI loginUri = oAuthClient.getAuthorizeUrl(realm, state, scope, postLoginTokenEndpoint, loginHint);
         return doAuthorizeRedirect(request, realm, state, loginUri);
@@ -135,7 +138,16 @@ public class IdpOAuthFlowController {
                               Optional<URI> customDestination = validatedState.getDestinationAfterLogin()
                                                                               .map(possiblyRelativeUrl -> UriUtil.selfLinkToUi(request, realm, "").resolve(possiblyRelativeUrl));
                               final URI ddapDataBrowserUrl = customDestination.orElseGet(() -> UriUtil.selfLinkToUi(request, realm, ""));
-                              return loginService.finishLogin(request, realm, tokenExchangePurpose, tokenResponse, ddapDataBrowserUrl);
+
+                              if (tokenExchangePurpose == TokenExchangePurpose.LOGIN) {
+                                  return loginService.finishLogin(request, realm, tokenExchangePurpose, tokenResponse, ddapDataBrowserUrl);
+                              } else if (tokenExchangePurpose == TokenExchangePurpose.LINK) {
+                                  final UserTokenCookiePackager.CookieValue accessToken = cookiePackager.extractRequiredToken(request, IC.cookieName(UserTokenCookiePackager.TokenKind.ACCESS));
+                                  return reactiveIcAccountClient.linkAccounts(realm, tokenResponse.getAccessToken(), accessToken.getClearText())
+                                      .map(success -> ResponseEntity.status(307).location(ddapDataBrowserUrl).build());
+                              } else {
+                                  return Mono.error(new TokenExchangeException("Unrecognized purpose in token exchange"));
+                              }
                           })
                           .doOnError(exception -> log.info("Failed to negotiate token", exception));
     }

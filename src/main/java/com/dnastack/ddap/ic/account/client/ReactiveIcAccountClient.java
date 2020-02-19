@@ -3,21 +3,22 @@ package com.dnastack.ddap.ic.account.client;
 import com.dnastack.ddap.common.client.AuthAwareWebClientFactory;
 import com.dnastack.ddap.common.client.OAuthFilter;
 import com.dnastack.ddap.common.client.ProtobufDeserializer;
+import com.dnastack.ddap.common.client.WebClientFactory;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieValue;
 import com.dnastack.ddap.ic.common.config.IcProperties;
 import ic.v1.IcService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.util.UriTemplate;
 import reactor.core.publisher.Mono;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static java.lang.String.format;
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 
 /*
@@ -58,65 +59,39 @@ public class ReactiveIcAccountClient {
     }
 
     public Mono<String> linkAccounts(String realm,
-                                     String baseAccountId,
                                      String baseAccountAccessToken,
-                                     String newAccountId,
-                                     String newAccountLinkToken,
-                                     String refreshToken) {
-        final UriTemplate template = new UriTemplate("/identity/v1alpha/{realm}/accounts/{accountId}" +
-                "?client_id={clientId}" +
-                "&client_secret={clientSecret}" +
-                "&link_token={linkToken}");
+                                     String newAccountLinkToken) {
+        final UriTemplate template = new UriTemplate("/identity/scim/v2/{realm}/Me" +
+            "?client_id={clientId}" +
+            "&client_secret={clientSecret}");
         final Map<String, Object> variables = new HashMap<>();
         variables.put("realm", realm);
-        variables.put("accountId", baseAccountId);
-        variables.put("linkToken", newAccountLinkToken);
         variables.put("clientId", icProperties.getClientId());
         variables.put("clientSecret", icProperties.getClientSecret());
 
-        return webClientFactory.getWebClient(realm, refreshToken, OAuthFilter.Audience.IC)
-                .patch()
-                .uri(icProperties.getBaseUrl().resolve(template.expand(variables)))
-                .header(AUTHORIZATION, "Bearer " + baseAccountAccessToken)
-                .exchange()
-                .flatMap(response -> {
-                    if (response.statusCode().is2xxSuccessful()) {
-                        return Mono.just(format("Successfully linked [%s] into base account [%s]", newAccountId, baseAccountId));
-                    } else {
-                        return response.bodyToMono(String.class)
-                                .flatMap(errorMessage -> Mono.error(new AccountLinkingFailedException("Link failed: " + errorMessage)));
-                    }
-                });
-    }
+        final Map<String, Object> body = new HashMap<>();
+        body.put("schemas", List.of("urn:ietf:params:scim:api:messages:2.0:PatchOp"));
+        body.put("Operations", List.of(Map.of(
+            "op", "add",
+            "path", "emails",
+            "value", "X-Link-Authorization"
+        )));
 
-    public Mono<String> unlinkAccount(String realm,
-                                      String accountId,
-                                      String accountAccessToken,
-                                      String refreshToken,
-                                      String subjectName) {
-        final UriTemplate template = new UriTemplate("/identity/v1alpha/{realm}/accounts/{accountId}/subjects/{subjectName}" +
-                "?client_id={clientId}" +
-                "&client_secret={clientSecret}");
-        final Map<String, Object> variables = new HashMap<>();
-        variables.put("realm", realm);
-        variables.put("accountId", accountId);
-        variables.put("subjectName", subjectName);
-        variables.put("clientId", icProperties.getClientId());
-        variables.put("clientSecret", icProperties.getClientSecret());
-
-        return webClientFactory.getWebClient(realm, refreshToken, OAuthFilter.Audience.IC)
-                .delete()
-                .uri(icProperties.getBaseUrl().resolve(template.expand(variables)))
-                .header(AUTHORIZATION, "Bearer " + accountAccessToken)
-                .exchange()
-                .flatMap(response -> {
-                    if (response.statusCode().is2xxSuccessful()) {
-                        return Mono.just(format("Successfully unlinked [%s] from account [%s]", subjectName, accountId));
-                    } else {
-                        return response.bodyToMono(String.class)
-                                .flatMap(errorMessage -> Mono.error(new AccountLinkingFailedException("Unlink failed: " + errorMessage)));
-                    }
-                });
+        return WebClientFactory.getWebClient()
+            .patch()
+            .uri(icProperties.getBaseUrl().resolve(template.expand(variables)))
+            .header(AUTHORIZATION, "Bearer " + baseAccountAccessToken)
+            .header("X-Link-Authorization", "Bearer " + newAccountLinkToken)
+            .body(BodyInserters.fromObject(body))
+            .exchange()
+            .flatMap(response -> {
+                if (response.statusCode().is2xxSuccessful()) {
+                    return Mono.just("Successfully linked accounts");
+                } else {
+                    return response.bodyToMono(String.class)
+                        .flatMap(errorMessage -> Mono.error(new AccountLinkingFailedException("Link failed: " + errorMessage)));
+                }
+            });
     }
 
 }

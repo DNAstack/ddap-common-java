@@ -2,12 +2,10 @@ package com.dnastack.ddap.ic.oauth.service;
 
 import com.dnastack.ddap.common.security.TokenExchangePurpose;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
-import com.dnastack.ddap.ic.common.config.IcProperties;
 import com.dnastack.ddap.ic.oauth.client.ReactiveIdpOAuthClient;
 import com.dnastack.ddap.ic.oauth.client.TokenExchangeException;
 import com.dnastack.ddap.ic.oauth.model.TokenResponse;
 import com.dnastack.ddap.ic.service.AccountLinkingService;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -21,9 +19,12 @@ import static com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicSer
 @Component
 @ConditionalOnExpression("${ic.enabled:false}")
 public class IcLoginService extends LoginService {
+
     private final AccountLinkingService accountLinkingService;
 
-    public IcLoginService(UserTokenCookiePackager cookiePackager, ReactiveIdpOAuthClient oAuthClient, AccountLinkingService accountLinkingService) {
+    public IcLoginService(UserTokenCookiePackager cookiePackager,
+                          ReactiveIdpOAuthClient oAuthClient,
+                          AccountLinkingService accountLinkingService) {
         super(cookiePackager, oAuthClient);
         this.accountLinkingService = accountLinkingService;
     }
@@ -34,9 +35,8 @@ public class IcLoginService extends LoginService {
             return Mono.just(assembleTokenResponse(ddapDataBrowserUrl, tokenResponse));
         } else if (tokenExchangePurpose == TokenExchangePurpose.LINK) {
             final UserTokenCookiePackager.CookieValue accessToken = cookiePackager.extractRequiredToken(request, IC.cookieName(UserTokenCookiePackager.TokenKind.ACCESS));
-            return accountLinkingService.finishAccountLinking(
-                    tokenResponse.getAccessToken(), accessToken.getClearText(), realm, null
-            ).map(success -> ResponseEntity.status(307).location(ddapDataBrowserUrl).build());
+            return accountLinkingService.finishAccountLinking(tokenResponse.getAccessToken(), accessToken.getClearText(), realm)
+                .map(success -> ResponseEntity.status(307).location(ddapDataBrowserUrl).build());
         } else {
             return Mono.error(new TokenExchangeException("Unrecognized purpose in token exchange"));
         }

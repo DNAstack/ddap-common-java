@@ -1,5 +1,6 @@
 package com.dnastack.ddap.ic.common.security;
 
+import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.Data;
@@ -7,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
@@ -51,6 +53,12 @@ public class JwtUtil {
     public static class JwtSubject {
         String sub;
         List<String> scp;
+        Instant exp;
+
+        @JsonSetter
+        public void setExp(Long exp) {
+            this.exp = Instant.ofEpochSecond(exp);
+        }
     }
 
 }

@@ -3,6 +3,7 @@ package com.dnastack.ddap.ic.oauth.service;
 import com.dnastack.ddap.common.security.TokenExchangePurpose;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
 import com.dnastack.ddap.common.util.http.UriUtil;
+import com.dnastack.ddap.ic.common.security.JwtUtil;
 import com.dnastack.ddap.ic.oauth.client.ReactiveIdpOAuthClient;
 import com.dnastack.ddap.ic.oauth.model.TokenResponse;
 import lombok.RequiredArgsConstructor;
@@ -13,40 +14,65 @@ import org.springframework.http.server.reactive.ServerHttpRequest;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
-import java.util.HashSet;
-import java.util.Set;
+import java.time.Instant;
+import java.util.*;
 
-import static com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieName;
+import static com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicServices.IC;
+import static com.dnastack.ddap.common.security.UserTokenCookiePackager.*;
 import static org.springframework.http.HttpHeaders.SET_COOKIE;
 import static org.springframework.http.HttpStatus.TEMPORARY_REDIRECT;
 
 @Slf4j
 @RequiredArgsConstructor
 public abstract class LoginService {
+
+    private static final Integer EXPIRATION_GRACE_PERIOD_IN_SECONDS = 300;
+
     protected final UserTokenCookiePackager cookiePackager;
     protected final ReactiveIdpOAuthClient oAuthClient;
 
     public abstract Mono<? extends ResponseEntity<?>> finishLogin(ServerHttpRequest icAccessToken, String realm, TokenExchangePurpose tokenExchangePurpose, TokenResponse tokenResponse, URI ddapDataBrowserUrl);
 
     public Mono<? extends ResponseEntity<?>> refresh(ServerHttpRequest request, String realm) {
-        UserTokenCookiePackager.CookieValue refreshToken = cookiePackager.extractRequiredToken(request, refreshTokenName());
+        Map<CookieName, CookieValue> tokens = cookiePackager.extractRequiredTokens(request, Set.of(IC.cookieName(TokenKind.ACCESS), IC.cookieName(TokenKind.REFRESH)));
+        CookieValue accessToken = tokens.get(IC.cookieName(TokenKind.ACCESS));
+        CookieValue refreshToken = tokens.get(IC.cookieName(TokenKind.REFRESH));
+
+        // Skip refreshing if it is not needed
+        if (!isExpiringSoon(accessToken)) {
+            return Mono.just(ResponseEntity.noContent().build());
+        }
+        List<String> scopes = getActiveScopes(accessToken);
 
         URI cookieDomainPath = UriUtil.selfLinkToApi(request, realm, "identity/token");
-        // FIXME: use issued scopes (from access token) for refresh token!
-        Mono<TokenResponse> refreshAccessTokenMono = oAuthClient.refreshAccessToken(realm, refreshToken.getClearText(), null);
+        Mono<TokenResponse> refreshAccessTokenMono = oAuthClient.refreshAccessToken(realm, refreshToken.getClearText(), String.join(" ", scopes));
 
         return refreshAccessTokenMono.map((tokenResponse) -> {
-            final ResponseEntity.HeadersBuilder<?> response =
-                    ResponseEntity.noContent()
-                                  .location(UriUtil.selfLinkToUi(request, realm, "identity"))
-                                  .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getAccessToken(), cookieDomainPath.getHost(), accessTokenName()).toString())
-                                  .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getIdToken(), cookieDomainPath.getHost(), idTokenName()).toString());
+            final ResponseEntity.HeadersBuilder<?> response = ResponseEntity.noContent()
+                .location(UriUtil.selfLinkToUi(request, realm, "identity"))
+                .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getAccessToken(), cookieDomainPath.getHost(), accessTokenName()).toString())
+                .header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getIdToken(), cookieDomainPath.getHost(), idTokenName()).toString());
             if (tokenResponse.getRefreshToken() != null) {
                 response.header(SET_COOKIE, cookiePackager.packageToken(tokenResponse.getRefreshToken(), cookieDomainPath.getHost(), refreshTokenName()).toString());
             }
 
             return response.build();
         });
+    }
+
+    private boolean isExpiringSoon(CookieValue accessToken) {
+        return JwtUtil.dangerousStopgapExtractSubject(accessToken.getClearText())
+            .map((jwt) -> {
+                Instant expiresAt = jwt.getExp();
+                return Instant.now().plusSeconds(EXPIRATION_GRACE_PERIOD_IN_SECONDS).isAfter(expiresAt);
+            })
+            .orElse(true);
+    }
+
+    private List<String> getActiveScopes(CookieValue accessToken) {
+        return JwtUtil.dangerousStopgapExtractSubject(accessToken.getClearText())
+            .map(JwtUtil.JwtSubject::getScp)
+            .orElse(Collections.emptyList());
     }
 
     /**

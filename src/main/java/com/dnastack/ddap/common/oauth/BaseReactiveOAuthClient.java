@@ -80,7 +80,8 @@ public class BaseReactiveOAuthClient implements ReactiveOAuthClient {
         final URI uri = authServerInfo.getResolver().getTokenEndpoint(realm);
 
         final BodyInserters.FormInserter<String> params = BodyInserters.fromFormData("refresh_token", refreshToken)
-                                                                       .with("grant_type", "refresh_token");
+            .with("grant_type", "refresh_token");
+
         if (scope != null) {
             params.with("scope", scope);
         }

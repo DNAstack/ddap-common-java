@@ -7,7 +7,6 @@ import com.dnastack.ddap.ic.common.security.JwtUtil;
 import com.dnastack.ddap.ic.oauth.client.ReactiveIdpOAuthClient;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -19,9 +18,8 @@ import java.util.Optional;
 import static com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicServices.DAM;
 
 @Component
-@ConditionalOnExpression("${idp.enabled:false} and not ${ic.enabled:false}")
 @RequiredArgsConstructor(onConstructor_ = @Autowired)
-public class UserInfoIdentityService implements IdentityService {
+public class DamUserInfoIdentityService implements IdentityService {
     private final ReactiveIdpOAuthClient idpClient;
     private final UserTokenCookiePackager cookiePackager;
     private final ProfileService profileService;

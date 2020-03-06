@@ -5,7 +5,7 @@ import com.dnastack.ddap.common.security.TokenExchangePurpose;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.TokenKind;
 import com.dnastack.ddap.common.util.http.UriUtil;
-import com.dnastack.ddap.ic.account.client.ReactiveIcAccountClient;
+import com.dnastack.ddap.ic.account.client.ReactiveLinkingClient;
 import com.dnastack.ddap.ic.oauth.client.ReactiveIdpOAuthClient;
 import com.dnastack.ddap.ic.oauth.client.TokenExchangeException;
 import com.dnastack.ddap.ic.oauth.service.LoginService;
@@ -38,19 +38,19 @@ public class IdpOAuthFlowController {
     private final OAuthStateHandler stateHandler;
     private final LoginService loginService;
     private final UserTokenCookiePackager cookiePackager;
-    private final ReactiveIcAccountClient reactiveIcAccountClient;
+    private final ReactiveLinkingClient reactiveLinkingClient;
 
     @Autowired
     public IdpOAuthFlowController(ReactiveIdpOAuthClient oAuthClient,
                                   UserTokenCookiePackager cookiePackager,
                                   OAuthStateHandler stateHandler,
                                   LoginService loginService,
-                                  ReactiveIcAccountClient reactiveIcAccountClient) {
+                                  ReactiveLinkingClient reactiveLinkingClient) {
         this.oAuthClient = oAuthClient;
         this.cookiePackager = cookiePackager;
         this.stateHandler = stateHandler;
         this.loginService = loginService;
-        this.reactiveIcAccountClient = reactiveIcAccountClient;
+        this.reactiveLinkingClient = reactiveLinkingClient;
     }
 
     /**
@@ -143,8 +143,8 @@ public class IdpOAuthFlowController {
                     return loginService.finishLogin(request, realm, tokenExchangePurpose, tokenResponse, ddapDataBrowserUrl);
                 } else if (tokenExchangePurpose == TokenExchangePurpose.LINK) {
                     final UserTokenCookiePackager.CookieValue accessToken = cookiePackager.extractRequiredToken(request, IC.cookieName(UserTokenCookiePackager.TokenKind.ACCESS));
-                    return reactiveIcAccountClient.linkAccounts(realm, tokenResponse.getAccessToken(), accessToken.getClearText())
-                        .map(success -> ResponseEntity.status(307).location(ddapDataBrowserUrl).build());
+                    return reactiveLinkingClient.linkAccounts(realm, tokenResponse.getAccessToken(), accessToken.getClearText())
+                                                .map(success -> ResponseEntity.status(307).location(ddapDataBrowserUrl).build());
                 } else {
                     return Mono.error(new TokenExchangeException("Unrecognized purpose in token exchange"));
                 }

@@ -33,13 +33,17 @@ public class JwtUtil {
     }
 
     public static Optional<JwtSubject> dangerousStopgapExtractSubject(String jwt) {
+        return dangerousStopgapExtractClaims(jwt, JwtSubject.class);
+    }
+
+    public static <T> Optional<T> dangerousStopgapExtractClaims(String jwt, Class<T> clazz) {
         String jsonBody = dangerousStopgapParseToken(jwt);
         final ObjectMapper objectMapper = new ObjectMapper()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
-        final JwtSubject decodedBody;
+        final T decodedBody;
         try {
-            decodedBody = objectMapper.readValue(jsonBody, JwtSubject.class);
+            decodedBody = objectMapper.readValue(jsonBody, clazz);
         } catch (IOException e) {
             log.info("Treating malformed token cookie as missing (couldn't JSON decode body)", e);
             return Optional.empty();

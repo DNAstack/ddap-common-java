@@ -2,9 +2,8 @@ package com.dnastack.ddap.common.client;
 
 import com.dnastack.ddap.common.config.DamProperties;
 import dam.v1.DamService;
-import dam.v1.DamService.ResourceTokens;
+import dam.v1.DamService.ResourceResults;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.springframework.web.util.UriTemplate;
 import reactor.core.publisher.Mono;
@@ -121,33 +120,6 @@ public class HttpReactiveDamClient implements ReactiveDamClient {
     }
 
     @Override
-    @Deprecated(forRemoval = true)
-    public Mono<ResourceTokens.ResourceToken> getAccessTokenForView(String realm,
-                                                                    String resourceId,
-                                                                    String viewId,
-                                                                    String damToken,
-                                                                    String refreshToken) {
-        final UriTemplate template = new UriTemplate(
-            "/dam/v1alpha/{realm}/resources/{resourceId}/views/{viewId}/token" +
-                "?client_id={clientId}" +
-                "&client_secret={clientSecret}");
-        final Map<String, Object> variables = new HashMap<>();
-        variables.put("realm", realm);
-        variables.put("resourceId", resourceId);
-        variables.put("viewId", viewId);
-        variables.put("clientId", damClientId);
-        variables.put("clientSecret", damClientSecret);
-
-        return webClientFactory.getWebClient(realm, refreshToken, OAuthFilter.Audience.IC)
-            .get()
-            .uri(damBaseUrl.resolve(template.expand(variables)))
-            .header(AUTHORIZATION, "Bearer " + damToken)
-            .retrieve()
-            .bodyToMono(String.class)
-            .flatMap(json -> ProtobufDeserializer.fromJsonToMono(json, ResourceTokens.ResourceToken.getDefaultInstance()));
-    }
-
-    @Override
     public Mono<Map<String, DamService.GetFlatViewsResponse.FlatView>> getFlattenedViews(String realm) {
         final UriTemplate template = new UriTemplate("/dam/v1alpha/{realm}/flatViews" +
             "?client_id={clientId}" +
@@ -168,7 +140,7 @@ public class HttpReactiveDamClient implements ReactiveDamClient {
 
     // FIXME update proto and return checkout object
     @Override
-    public Mono<ResourceTokens> checkoutCart(String cartToken) {
+    public Mono<ResourceResults> checkoutCart(String cartToken) {
         final UriTemplate template = new UriTemplate("/dam/checkout" +
             "?client_id={clientId}" +
             "&client_secret={clientSecret}");
@@ -182,7 +154,7 @@ public class HttpReactiveDamClient implements ReactiveDamClient {
                 .header(AUTHORIZATION, "Bearer " + cartToken)
                 .retrieve()
                 .bodyToMono(String.class)
-                .flatMap(json -> ProtobufDeserializer.fromJsonToMono(json, ResourceTokens.getDefaultInstance()))
+                .flatMap(json -> ProtobufDeserializer.fromJsonToMono(json, ResourceResults.getDefaultInstance()))
                 .onErrorMap(ex -> {
                     try {
                         throw ex;

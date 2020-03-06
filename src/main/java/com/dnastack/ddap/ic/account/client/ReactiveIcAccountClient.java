@@ -6,20 +6,22 @@ import com.dnastack.ddap.common.client.ProtobufDeserializer;
 import com.dnastack.ddap.common.client.WebClientFactory;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieValue;
 import com.dnastack.ddap.ic.common.config.IcProperties;
-import ic.v1.IcService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.util.UriTemplate;
 import reactor.core.publisher.Mono;
+import scim.v2.Users;
 
+import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.springframework.http.HttpHeaders.AUTHORIZATION;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 
 /*
  * TODO move this to ddap-ic-admin. Not needed by other deployments anymore.
@@ -27,8 +29,11 @@ import static org.springframework.http.HttpHeaders.AUTHORIZATION;
 @Slf4j
 @Component
 @ConditionalOnExpression("${ic.enabled:false}")
-public class ReactiveIcAccountClient {
+public class ReactiveIcAccountClient implements ReactiveLinkingClient {
 
+    private static final UriTemplate SCIM_ME_TEMPLATE = new UriTemplate("/identity/scim/v2/{realm}/Me" +
+                                                         "?client_id={clientId}" +
+                                                         "&client_secret={clientSecret}");
     private IcProperties icProperties;
     private AuthAwareWebClientFactory webClientFactory;
 
@@ -37,10 +42,7 @@ public class ReactiveIcAccountClient {
         this.webClientFactory = webClientFactory;
     }
 
-    public Mono<IcService.AccountResponse> getAccounts(String realm, CookieValue icToken, CookieValue refreshToken) {
-        final UriTemplate template = new UriTemplate("/identity/v1alpha/{realm}/accounts/-" +
-                "?client_id={clientId}" +
-                "&client_secret={clientSecret}");
+    public Mono<Users.User> getAccounts(String realm, CookieValue icToken, CookieValue refreshToken) {
         final Map<String, Object> variables = new HashMap<>();
         variables.put("realm", realm);
         variables.put("clientId", icProperties.getClientId());
@@ -51,19 +53,28 @@ public class ReactiveIcAccountClient {
                                                      .orElse(null);
         return webClientFactory.getWebClient(realm, null, OAuthFilter.Audience.IC)
                                .get()
-                               .uri(icProperties.getBaseUrl().resolve(template.expand(variables)))
+                               .uri(icProperties.getBaseUrl().resolve(SCIM_ME_TEMPLATE.expand(variables)))
                                .header(AUTHORIZATION, "Bearer " + icToken.getClearText())
                                .retrieve()
                                .bodyToMono(String.class)
-                               .flatMap(json -> ProtobufDeserializer.fromJsonToMono(json, IcService.AccountResponse.getDefaultInstance()));
+                               .flatMap(json -> ProtobufDeserializer.fromJsonToMono(json, Users.User.getDefaultInstance()));
     }
 
+    public Mono<IcUserInfo> getUserInfo(String accessToken) {
+        final URI uri = icProperties.getBaseUrl().resolve("/userinfo");
+        return WebClientFactory.getWebClient()
+                               .get()
+                               .uri(uri)
+                               .header(AUTHORIZATION, "Bearer " + accessToken)
+                               .accept(APPLICATION_JSON)
+                               .exchange()
+                               .flatMap(response -> response.bodyToMono(IcUserInfo.class));
+    }
+
+    @Override
     public Mono<String> linkAccounts(String realm,
                                      String baseAccountAccessToken,
                                      String newAccountLinkToken) {
-        final UriTemplate template = new UriTemplate("/identity/scim/v2/{realm}/Me" +
-            "?client_id={clientId}" +
-            "&client_secret={clientSecret}");
         final Map<String, Object> variables = new HashMap<>();
         variables.put("realm", realm);
         variables.put("clientId", icProperties.getClientId());
@@ -79,7 +90,7 @@ public class ReactiveIcAccountClient {
 
         return WebClientFactory.getWebClient()
             .patch()
-            .uri(icProperties.getBaseUrl().resolve(template.expand(variables)))
+            .uri(icProperties.getBaseUrl().resolve(SCIM_ME_TEMPLATE.expand(variables)))
             .header(AUTHORIZATION, "Bearer " + baseAccountAccessToken)
             .header("X-Link-Authorization", "Bearer " + newAccountLinkToken)
             .body(BodyInserters.fromObject(body))

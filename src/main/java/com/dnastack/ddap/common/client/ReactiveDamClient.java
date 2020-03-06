@@ -18,15 +18,8 @@ public interface ReactiveDamClient {
                                                         String damToken,
                                                         String refreshToken);
 
-    @Deprecated(forRemoval = true)
-    Mono<DamService.ResourceTokens.ResourceToken> getAccessTokenForView(String realm,
-                                                                        String resourceId,
-                                                                        String viewId,
-                                                                        String damToken,
-                                                                        String refreshToken);
-
     Mono<Map<String, DamService.GetFlatViewsResponse.FlatView>> getFlattenedViews(String realm);
 
     // FIXME update proto and return checkout object
-    Mono<DamService.ResourceTokens> checkoutCart(String cartToken);
+    Mono<DamService.ResourceResults> checkoutCart(String cartToken);
 }

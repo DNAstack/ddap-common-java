@@ -1,6 +1,6 @@
 package com.dnastack.ddap.ic.service;
 
-import com.dnastack.ddap.ic.account.client.ReactiveIcAccountClient;
+import com.dnastack.ddap.ic.account.client.ReactiveLinkingClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
@@ -10,10 +10,10 @@ import reactor.core.publisher.Mono;
 @ConditionalOnExpression("${ic.enabled:false}")
 public class AccountLinkingService {
 
-    private ReactiveIcAccountClient accountClient;
+    private ReactiveLinkingClient accountClient;
 
     @Autowired
-    public AccountLinkingService(ReactiveIcAccountClient accountClient) {
+    public AccountLinkingService(ReactiveLinkingClient accountClient) {
         this.accountClient = accountClient;
     }
 

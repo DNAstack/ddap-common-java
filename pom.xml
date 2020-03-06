@@ -153,6 +153,9 @@
                             <inputDirectories>
                                 <include>${basedir}/shared/protos</include>
                             </inputDirectories>
+                            <includeDirectories>
+                                <directory>${basedir}/shared/protos</directory>
+                            </includeDirectories>
                         </configuration>
                     </execution>
                 </executions>

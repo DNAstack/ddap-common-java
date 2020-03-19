@@ -29,6 +29,7 @@ public class OAuthStateHandler {
     private static final String DESTINATION_AFTER_LOGIN = "destinationAfterLogin";
     private static final String CLI_SESSION_ID_KEY = "cliSessionId";
     public static final String AUTH_RESOURCE_LIST = "resource";
+    public static final String NEXT_AUTH_URL = "nextAuthUrl";
     private final com.dnastack.ddap.common.security.JwtHandler jwtHandler;
 
     @Autowired
@@ -52,9 +53,18 @@ public class OAuthStateHandler {
                              singletonMap(DESTINATION_AFTER_LOGIN, destinationAfterLogin));
     }
 
-    public String generateResourceState(URI destinationAfterLogin, String realm, List<URI> resources) {
-        return generateState(TokenExchangePurpose.RESOURCE_AUTH, realm, Map.of(DESTINATION_AFTER_LOGIN, destinationAfterLogin,
-                                                                               AUTH_RESOURCE_LIST, resources));
+    public String generateResourceState(URI destinationAfterLogin, String realm, List<URI> resources, URI nextAuthUrl) {
+        final Map<String, Object> extraClaims;
+        if (nextAuthUrl != null) {
+            extraClaims = Map.of(DESTINATION_AFTER_LOGIN, destinationAfterLogin,
+                                 AUTH_RESOURCE_LIST, resources,
+                                 NEXT_AUTH_URL, nextAuthUrl);
+        } else {
+            extraClaims = Map.of(DESTINATION_AFTER_LOGIN, destinationAfterLogin,
+                                 AUTH_RESOURCE_LIST, resources);
+        }
+
+        return generateState(TokenExchangePurpose.RESOURCE_AUTH, realm, extraClaims);
     }
 
     public String generateCommandLineLoginState(String cliSessionId, String realm) {
@@ -132,6 +142,11 @@ public class OAuthStateHandler {
 
         public Optional<String> getCliSession() {
             return Optional.ofNullable(state.get(CLI_SESSION_ID_KEY, String.class));
+        }
+
+        public Optional<URI> getNextAuthorizeUri() {
+            return Optional.ofNullable(state.get(NEXT_AUTH_URL, String.class))
+                           .map(URI::create);
         }
 
         public Optional<URI> getDestinationAfterLogin() {

@@ -24,8 +24,6 @@ import java.util.zip.Inflater;
 @Component
 public class UserTokenCookiePackager {
 
-    public static final String LINK_TOKEN_COOKIE_NAME = "LINK";
-
     /**
      * To allow local development without HTTPS, marking cookies as secure is a configurable option.
      */

@@ -17,7 +17,7 @@
 
 package com.dnastack.ddap.common.proxy;
 
-import com.dnastack.ddap.common.util.LoggingWebFilter;
+import com.dnastack.ddap.common.util.logging.LoggingWebFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;

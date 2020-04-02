@@ -1,19 +1,13 @@
-package com.dnastack.ddap.common.util;
+package com.dnastack.ddap.common.util.logging;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cloud.gateway.route.Route;
-import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
 import org.springframework.core.Ordered;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
-import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
-
-import java.net.URI;
 
 @Component
 @Slf4j
@@ -30,34 +24,11 @@ public class LoggingWebFilter implements WebFilter, Ordered {
 
         // Make sure logging request is part of the mono, so that if the request is retried
         // we will see it again in the logs
-        return Mono.fromRunnable(() -> logRoutedRequest(exchange))
+        return Mono.fromRunnable(() -> LoggingFilter.logRoutedRequest(exchange))
                    .then(chain.filter(exchange)
                               .doOnSuccess(value -> logResponse(exchange, startTime))
                               .doOnError(error -> logError(error, startTime))
                               .doOnTerminate(() -> logTermination(startTime)));
-    }
-
-    private void logRoutedRequest(ServerWebExchange exchange) {
-        ServerHttpRequest request = exchange.getRequest();
-        URI calculatedRoute = calculateRequestRoute(exchange);
-        log.info(">>> {} {}", request.getMethodValue(), calculatedRoute);
-        exchange.getRequest()
-                .getHeaders()
-                .forEach((name, values) -> log.info("  {}: {}", name, values));
-    }
-
-    private URI calculateRequestRoute(ServerWebExchange exchange) {
-        ServerHttpRequest request = exchange.getRequest();
-        URI requestUri = request.getURI();
-
-        Route gatewayRoute = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
-        URI routeUri = gatewayRoute == null ? requestUri : gatewayRoute.getUri();
-
-        return UriComponentsBuilder.fromUri(routeUri)
-                                   .replacePath(requestUri.getPath())
-                                   .replaceQuery(requestUri.getQuery())
-                                   .build()
-                                   .toUri();
     }
 
     private void logTermination(long startTime) {

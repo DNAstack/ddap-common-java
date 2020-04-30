@@ -4,10 +4,14 @@ import com.dnastack.ddap.common.client.AuthAwareWebClientFactory;
 import com.dnastack.ddap.common.client.OAuthFilter;
 import com.dnastack.ddap.common.client.ProtobufDeserializer;
 import com.dnastack.ddap.common.client.WebClientFactory;
+import com.dnastack.ddap.common.exception.ServiceOutage;
+import com.dnastack.ddap.common.security.BadCredentialsException;
+import com.dnastack.ddap.common.security.InvalidTokenException;
 import com.dnastack.ddap.common.security.UserTokenCookiePackager.CookieValue;
 import com.dnastack.ddap.ic.common.config.IcProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.util.UriTemplate;
@@ -68,7 +72,21 @@ public class ReactiveIcAccountClient implements ReactiveLinkingClient {
                                .header(AUTHORIZATION, "Bearer " + accessToken)
                                .accept(APPLICATION_JSON)
                                .exchange()
-                               .flatMap(response -> response.bodyToMono(IcUserInfo.class));
+                               .flatMap(response -> {
+                                   if (response.statusCode().is2xxSuccessful()) {
+                                       return response.bodyToMono(IcUserInfo.class);
+                                   } else if (response.statusCode().equals(HttpStatus.UNAUTHORIZED)) {
+                                       return response.bodyToMono(String.class)
+                                                      .flatMap(body -> Mono.error(new InvalidTokenException(body)));
+                                   } else if (response.statusCode().equals(HttpStatus.FORBIDDEN)) {
+                                       return response.bodyToMono(String.class)
+                                                      .flatMap(body -> Mono.error(new BadCredentialsException(body)));
+
+                                   } else {
+                                       return response.bodyToMono(String.class)
+                                                      .flatMap(body -> Mono.error(new ServiceOutage(body)));
+                                   }
+                               });
     }
 
     @Override

@@ -1,6 +1,7 @@
 package com.dnastack.ddap.common.controller;
 
 import com.dnastack.ddap.common.client.CartCheckoutException;
+import com.dnastack.ddap.common.exception.ServiceOutage;
 import com.dnastack.ddap.common.security.*;
 import com.dnastack.ddap.common.util.http.XForwardUtil;
 import lombok.extern.slf4j.Slf4j;
@@ -60,6 +61,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(InapplicableAuthorizationFlowException.class)
     public ResponseEntity<DdapErrorResponse> handle(InapplicableAuthorizationFlowException ex) {
         return ResponseEntity.status(403).body(new DdapErrorResponse(ex.getMessage(), 403));
+    }
+
+    @ExceptionHandler(ServiceOutage.class)
+    public ResponseEntity<DdapErrorResponse> handle(ServiceOutage ex) {
+        return ResponseEntity.status(500).body(new DdapErrorResponse(ex.getMessage(), 500));
     }
 
     @ExceptionHandler(UnsupportedOperationException.class)

@@ -8,6 +8,6 @@ to install ddap-common locally before running the dependent app.
 
 ## Protos
 
-This project has a compile-time only dependency on DAM/IC protos.
+This project has a compile-time-only dependency on DAM/IC protos.
 Applications using this library *must* include their own compiled protos. This library
 is not compiled with protos so that applications can use newer proto definitions (that are API compatible).

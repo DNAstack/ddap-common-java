@@ -19,9 +19,9 @@ import static com.dnastack.ddap.common.security.UserTokenCookiePackager.BasicSer
 @Slf4j
 @Component
 @ConditionalOnExpression("${idp.enabled:false} and not ${ic.enabled:false}")
-public class IdpLoginService extends LoginService {
+public class DamLoginService extends LoginService {
 
-    public IdpLoginService(UserTokenCookiePackager cookiePackager, ReactiveIdpOAuthClient oAuthClient) {
+    public DamLoginService(UserTokenCookiePackager cookiePackager, ReactiveIdpOAuthClient oAuthClient) {
         super(cookiePackager, oAuthClient);
     }
 

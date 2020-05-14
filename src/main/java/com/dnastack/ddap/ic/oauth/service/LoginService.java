@@ -34,9 +34,12 @@ public abstract class LoginService {
     public abstract Mono<? extends ResponseEntity<?>> finishLogin(ServerHttpRequest icAccessToken, String realm, TokenExchangePurpose tokenExchangePurpose, TokenResponse tokenResponse, URI ddapDataBrowserUrl);
 
     public Mono<? extends ResponseEntity<?>> refresh(ServerHttpRequest request, String realm) {
-        Map<CookieName, CookieValue> tokens = cookiePackager.extractRequiredTokens(request, Set.of(IC.cookieName(TokenKind.ACCESS), IC.cookieName(TokenKind.REFRESH)));
-        CookieValue accessToken = tokens.get(IC.cookieName(TokenKind.ACCESS));
-        CookieValue refreshToken = tokens.get(IC.cookieName(TokenKind.REFRESH));
+        final CookieName accessCookieName = accessTokenName();
+        final CookieName refreshCookieName = refreshTokenName();
+
+        Map<CookieName, CookieValue> tokens = cookiePackager.extractRequiredTokens(request, Set.of(accessCookieName, refreshCookieName));
+        CookieValue accessToken = tokens.get(accessCookieName);
+        CookieValue refreshToken = tokens.get(refreshCookieName);
 
         // Skip refreshing if it is not needed
         if (!isExpiringSoon(accessToken)) {

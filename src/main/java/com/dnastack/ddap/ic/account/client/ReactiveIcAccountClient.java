@@ -35,7 +35,7 @@ import static org.springframework.http.MediaType.APPLICATION_JSON;
 @ConditionalOnExpression("${ic.enabled:false}")
 public class ReactiveIcAccountClient implements ReactiveLinkingClient {
 
-    private static final UriTemplate SCIM_ME_TEMPLATE = new UriTemplate("/identity/scim/v2/{realm}/Me" +
+    private static final UriTemplate SCIM_ME_TEMPLATE = new UriTemplate("/scim/v2/{realm}/Me" +
                                                          "?client_id={clientId}" +
                                                          "&client_secret={clientSecret}");
     private IcProperties icProperties;

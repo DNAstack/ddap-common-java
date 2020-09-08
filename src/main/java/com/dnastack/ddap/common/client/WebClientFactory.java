@@ -29,7 +29,8 @@ public class WebClientFactory {
                     case OPTIONS:
                         return timeout(next.exchange(request), Duration.ofSeconds(1))
                             .onErrorResume(TimeoutException.class, ex -> timeout(next.exchange(request), Duration.ofSeconds(10)))
-                            .onErrorResume(TimeoutException.class, ex -> timeout(next.exchange(request), Duration.ofSeconds(20)));
+                            .onErrorResume(TimeoutException.class, ex -> timeout(next.exchange(request), Duration.ofSeconds(30)))
+                            .onErrorResume(TimeoutException.class, ex -> timeout(next.exchange(request), Duration.ofSeconds(80)));
                     default:
                         return next.exchange(request);
                 }

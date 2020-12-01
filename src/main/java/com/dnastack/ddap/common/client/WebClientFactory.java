@@ -20,8 +20,6 @@ public class WebClientFactory {
                     .defaultCodecs()
                     .maxInMemorySize(MAX_IN_MEMORY_SIZE))
                 .build())
-            .filter(LoggingFilter.logRequest())
-            .filter(LoggingFilter.logResponse())
             .filter((request, next) -> {
                 switch (request.method()) {
                     case GET:
@@ -34,7 +32,9 @@ public class WebClientFactory {
                     default:
                         return next.exchange(request);
                 }
-            });
+            })
+            .filter(LoggingFilter.logRequest())
+            .filter(LoggingFilter.logResponse());
     }
 
     public static WebClient getWebClient() {
